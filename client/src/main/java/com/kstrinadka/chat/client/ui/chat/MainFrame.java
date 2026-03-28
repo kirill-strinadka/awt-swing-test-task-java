@@ -1,5 +1,8 @@
 package com.kstrinadka.chat.client.ui.chat;
 
+import com.kstrinadka.chat.client.presentation.chat.ChatPresenter;
+import com.kstrinadka.chat.client.presentation.chat.ChatView;
+
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
@@ -23,10 +26,9 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Font;
-import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
+import java.util.List;
 
-public class MainFrame extends JFrame {
+public class MainFrame extends JFrame implements ChatView {
 
     private static final Color WINDOW_BG = new Color(24, 33, 42);
     private static final Color SIDEBAR_BG = new Color(30, 40, 50);
@@ -35,8 +37,7 @@ public class MainFrame extends JFrame {
     private static final Color HEADER_BG = new Color(29, 39, 49);
     private static final Color TEXT_PRIMARY = new Color(230, 235, 240);
     private static final Color TEXT_SECONDARY = new Color(150, 160, 170);
-
-    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
+    private static final Color ERROR_COLOR = new Color(255, 120, 120);
 
     private final JList<String> contactsList;
     private final JPanel messagesPanel;
@@ -45,6 +46,9 @@ public class MainFrame extends JFrame {
     private final JButton sendButton;
     private final JLabel chatTitleLabel;
     private final JLabel chatSubtitleLabel;
+    private final JLabel errorLabel;
+
+    private final ChatPresenter presenter;
 
     public MainFrame(String currentUsername) {
         super("Chat Client — Main");
@@ -60,11 +64,15 @@ public class MainFrame extends JFrame {
         sendButton = new JButton("Send");
         chatTitleLabel = new JLabel("alice");
         chatSubtitleLabel = new JLabel("MVP chat preview");
+        errorLabel = new JLabel(" ");
+
+        presenter = new ChatPresenter(this);
 
         initFrame();
         initUi(currentUsername);
-        populateFakeMessages();
         bindActions();
+
+        presenter.initialize();
     }
 
     private void initFrame() {
@@ -182,9 +190,16 @@ public class MainFrame extends JFrame {
     }
 
     private JComponent createInputPanel() {
+        JPanel inputWrapper = new JPanel(new BorderLayout());
+        inputWrapper.setBackground(HEADER_BG);
+
+        errorLabel.setForeground(ERROR_COLOR);
+        errorLabel.setBorder(BorderFactory.createEmptyBorder(4, 16, 0, 16));
+        errorLabel.setFont(errorLabel.getFont().deriveFont(Font.PLAIN, 12f));
+
         JPanel inputPanel = new JPanel(new BorderLayout(10, 0));
         inputPanel.setBackground(HEADER_BG);
-        inputPanel.setBorder(BorderFactory.createEmptyBorder(14, 14, 14, 14));
+        inputPanel.setBorder(BorderFactory.createEmptyBorder(10, 14, 14, 14));
 
         inputArea.setLineWrap(true);
         inputArea.setWrapStyleWord(true);
@@ -203,13 +218,10 @@ public class MainFrame extends JFrame {
         inputPanel.add(inputScrollPane, BorderLayout.CENTER);
         inputPanel.add(sendButton, BorderLayout.EAST);
 
-        return inputPanel;
-    }
+        inputWrapper.add(errorLabel, BorderLayout.NORTH);
+        inputWrapper.add(inputPanel, BorderLayout.CENTER);
 
-    private void populateFakeMessages() {
-        for (MessageVm messageVm : FakeMessageFactory.createFakeMessages()) {
-            appendMessage(messageVm);
-        }
+        return inputWrapper;
     }
 
     private void bindActions() {
@@ -224,29 +236,51 @@ public class MainFrame extends JFrame {
         });
 
         sendButton.addActionListener(event -> {
-            String text = inputArea.getText().trim();
-            if (text.isBlank()) {
-                return;
-            }
-
-            MessageVm messageVm = new MessageVm(
-                    text,
-                    MessageDirection.OUTGOING,
-                    LocalTime.now().format(TIME_FORMATTER),
-                    MessageStatus.SENDING
-            );
-
-            appendMessage(messageVm);
-            inputArea.setText("");
+            errorLabel.setText(" ");
+            presenter.onSendClicked(inputArea.getText());
         });
+
+        getRootPane().setDefaultButton(sendButton);
     }
 
-    private void appendMessage(MessageVm messageVm) {
-        MessageBubblePanel bubblePanel = new MessageBubblePanel(messageVm);
+    @Override
+    public void showMessages(List<MessageVm> messages) {
+        messagesPanel.removeAll();
+
+        for (MessageVm message : messages) {
+            MessageBubblePanel bubblePanel = new MessageBubblePanel(message);
+            messagesPanel.add(bubblePanel);
+        }
+
+        messagesPanel.revalidate();
+        messagesPanel.repaint();
+        scrollToBottom();
+    }
+
+    @Override
+    public void appendMessage(MessageVm message) {
+        MessageBubblePanel bubblePanel = new MessageBubblePanel(message);
         messagesPanel.add(bubblePanel);
         messagesPanel.revalidate();
         messagesPanel.repaint();
         scrollToBottom();
+    }
+
+    @Override
+    public void clearInput() {
+        inputArea.setText("");
+        inputArea.requestFocusInWindow();
+    }
+
+    @Override
+    public void setSendEnabled(boolean enabled) {
+        sendButton.setEnabled(enabled);
+        inputArea.setEnabled(enabled);
+    }
+
+    @Override
+    public void showError(String message) {
+        errorLabel.setText(message == null || message.isBlank() ? " " : message);
     }
 
     private void scrollToBottom() {
