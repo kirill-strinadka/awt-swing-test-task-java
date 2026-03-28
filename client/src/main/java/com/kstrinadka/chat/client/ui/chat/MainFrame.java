@@ -8,8 +8,8 @@ import javax.swing.DefaultListModel;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JFrame;
-import javax.swing.JLabel;
 import javax.swing.JList;
+import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JSeparator;
@@ -23,6 +23,8 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 
 public class MainFrame extends JFrame {
 
@@ -33,6 +35,8 @@ public class MainFrame extends JFrame {
     private static final Color HEADER_BG = new Color(29, 39, 49);
     private static final Color TEXT_PRIMARY = new Color(230, 235, 240);
     private static final Color TEXT_SECONDARY = new Color(150, 160, 170);
+
+    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
 
     private final JList<String> contactsList;
     private final JPanel messagesPanel;
@@ -203,14 +207,9 @@ public class MainFrame extends JFrame {
     }
 
     private void populateFakeMessages() {
-        for (MessageBubblePanel bubblePanel : FakeMessageFactory.createFakeMessages()) {
-            messagesPanel.add(bubblePanel);
+        for (MessageVm messageVm : FakeMessageFactory.createFakeMessages()) {
+            appendMessage(messageVm);
         }
-
-        messagesPanel.revalidate();
-        messagesPanel.repaint();
-
-        scrollToBottom();
     }
 
     private void bindActions() {
@@ -230,20 +229,24 @@ public class MainFrame extends JFrame {
                 return;
             }
 
-            MessageBubblePanel bubblePanel = new MessageBubblePanel(
+            MessageVm messageVm = new MessageVm(
                     text,
-                    "now",
-                    "Sending...",
-                    MessageDirection.OUTGOING
+                    MessageDirection.OUTGOING,
+                    LocalTime.now().format(TIME_FORMATTER),
+                    MessageStatus.SENDING
             );
 
-            messagesPanel.add(bubblePanel);
-            messagesPanel.revalidate();
-            messagesPanel.repaint();
-
+            appendMessage(messageVm);
             inputArea.setText("");
-            scrollToBottom();
         });
+    }
+
+    private void appendMessage(MessageVm messageVm) {
+        MessageBubblePanel bubblePanel = new MessageBubblePanel(messageVm);
+        messagesPanel.add(bubblePanel);
+        messagesPanel.revalidate();
+        messagesPanel.repaint();
+        scrollToBottom();
     }
 
     private void scrollToBottom() {
