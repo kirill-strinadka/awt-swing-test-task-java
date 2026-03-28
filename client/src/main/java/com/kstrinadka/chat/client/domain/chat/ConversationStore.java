@@ -1,0 +1,46 @@
+package com.kstrinadka.chat.client.domain.chat;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Objects;
+
+public class ConversationStore {
+
+    private final Map<String, Conversation> conversations = new LinkedHashMap<>();
+
+    public Conversation getOrCreateConversation(String username) {
+        Objects.requireNonNull(username, "username must not be null");
+        return conversations.computeIfAbsent(username, Conversation::new);
+    }
+
+    public void addOutgoingMessage(String to, Message message) {
+        Objects.requireNonNull(to, "to must not be null");
+        Objects.requireNonNull(message, "message must not be null");
+
+        Conversation conversation = getOrCreateConversation(to);
+        conversation.addMessage(message);
+    }
+
+    public void addIncomingMessage(String from, Message message) {
+        Objects.requireNonNull(from, "from must not be null");
+        Objects.requireNonNull(message, "message must not be null");
+
+        Conversation conversation = getOrCreateConversation(from);
+        conversation.addMessage(message);
+    }
+
+    public Message findByClientMsgId(String clientMsgId) {
+        if (clientMsgId == null || clientMsgId.isBlank()) {
+            return null;
+        }
+
+        for (Conversation conversation : conversations.values()) {
+            Message message = conversation.findByClientMsgId(clientMsgId);
+            if (message != null) {
+                return message;
+            }
+        }
+
+        return null;
+    }
+}

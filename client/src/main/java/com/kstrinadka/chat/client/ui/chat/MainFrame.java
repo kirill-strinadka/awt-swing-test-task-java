@@ -66,7 +66,7 @@ public class MainFrame extends JFrame implements ChatView {
         chatSubtitleLabel = new JLabel("MVP chat preview");
         errorLabel = new JLabel(" ");
 
-        presenter = new ChatPresenter(this);
+        presenter = new ChatPresenter(this, currentUsername);
 
         initFrame();
         initUi(currentUsername);
