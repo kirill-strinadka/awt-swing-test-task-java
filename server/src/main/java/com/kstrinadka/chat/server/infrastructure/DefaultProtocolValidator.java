@@ -3,6 +3,7 @@ package com.kstrinadka.chat.server.infrastructure;
 import com.kstrinadka.chat.server.protocol.AuthRequest;
 import com.kstrinadka.chat.server.protocol.ClientRequest;
 import com.kstrinadka.chat.server.protocol.ProtocolException;
+import com.kstrinadka.chat.server.protocol.ProtocolTypes;
 import com.kstrinadka.chat.server.protocol.ProtocolValidator;
 import com.kstrinadka.chat.server.protocol.SendMessageRequest;
 
@@ -33,37 +34,26 @@ public final class DefaultProtocolValidator implements ProtocolValidator {
             return;
         }
 
-        throw new ProtocolException("Unsupported request type: " + request.getClass().getSimpleName());
+        throw new ProtocolException("Unsupported request class: " + request.getClass().getName());
     }
 
     private void validateAuth(AuthRequest request) throws ProtocolException {
-        if (isBlank(request.type())) {
-            throw new ProtocolException("AUTH.type must not be blank");
+        if (!ProtocolTypes.REQUEST_AUTH.equals(request.type())) {
+            throw new ProtocolException("Invalid AUTH.type value: " + request.type());
         }
-        if (isBlank(request.requestId())) {
-            throw new ProtocolException("AUTH.requestId must not be blank");
-        }
-        if (isBlank(request.username())) {
-            throw new ProtocolException("AUTH.username must not be blank");
-        }
-        if (isBlank(request.password())) {
-            throw new ProtocolException("AUTH.password must not be blank");
-        }
+        requireNotBlank(request.requestId(), "AUTH.requestId");
+        requireNotBlank(request.username(), "AUTH.username");
+        requireNotBlank(request.password(), "AUTH.password");
     }
 
     private void validateSend(SendMessageRequest request) throws ProtocolException {
-        if (isBlank(request.type())) {
-            throw new ProtocolException("SEND.type must not be blank");
+        if (!ProtocolTypes.REQUEST_SEND.equals(request.type())) {
+            throw new ProtocolException("Invalid SEND.type value: " + request.type());
         }
-        if (isBlank(request.requestId())) {
-            throw new ProtocolException("SEND.requestId must not be blank");
-        }
-        if (isBlank(request.clientMsgId())) {
-            throw new ProtocolException("SEND.clientMsgId must not be blank");
-        }
-        if (isBlank(request.to())) {
-            throw new ProtocolException("SEND.to must not be blank");
-        }
+        requireNotBlank(request.requestId(), "SEND.requestId");
+        requireNotBlank(request.to(), "SEND.to");
+        requireNotBlank(request.clientMsgId(), "SEND.clientMsgId");
+
         if (request.text() == null) {
             throw new ProtocolException("SEND.text must not be null");
         }
@@ -75,7 +65,9 @@ public final class DefaultProtocolValidator implements ProtocolValidator {
         }
     }
 
-    private static boolean isBlank(String value) {
-        return value == null || value.isBlank();
+    private static void requireNotBlank(String value, String fieldName) throws ProtocolException {
+        if (value == null || value.isBlank()) {
+            throw new ProtocolException(fieldName + " must not be blank");
+        }
     }
 }
