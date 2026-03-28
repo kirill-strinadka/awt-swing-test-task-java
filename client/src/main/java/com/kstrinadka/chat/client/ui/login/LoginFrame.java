@@ -1,7 +1,6 @@
 package com.kstrinadka.chat.client.ui.login;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.kstrinadka.chat.client.ui.chat.MainFrame;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -23,8 +22,6 @@ import java.text.NumberFormat;
 
 public class LoginFrame extends JFrame {
 
-    private static final Logger log = LoggerFactory.getLogger(LoginFrame.class);
-
     private final JTextField hostField;
     private final JFormattedTextField portField;
     private final JTextField usernameField;
@@ -40,7 +37,7 @@ public class LoginFrame extends JFrame {
         usernameField = new JTextField();
         passwordField = new JPasswordField();
         loginButton = new JButton("Login");
-        statusLabel = new JLabel("Enter credentials to connect", SwingConstants.CENTER);
+        statusLabel = new JLabel("Enter credentials to continue", SwingConstants.CENTER);
 
         initFrame();
         initUi();
@@ -62,7 +59,7 @@ public class LoginFrame extends JFrame {
         JLabel titleLabel = new JLabel("Telegram-like Chat Client", SwingConstants.CENTER);
         titleLabel.setFont(titleLabel.getFont().deriveFont(Font.BOLD, 22f));
 
-        JLabel subtitleLabel = new JLabel("MVP login screen", SwingConstants.CENTER);
+        JLabel subtitleLabel = new JLabel("Stage 2 — UI skeleton without network", SwingConstants.CENTER);
         subtitleLabel.setFont(subtitleLabel.getFont().deriveFont(Font.PLAIN, 13f));
 
         JPanel headerPanel = new JPanel();
@@ -108,18 +105,16 @@ public class LoginFrame extends JFrame {
 
     private void bindActions() {
         loginButton.addActionListener(e -> {
-            String message = """
-                    Login action is not connected yet.
-                    Current values:
-                    host=%s, port=%d, username=%s
-                    """.formatted(
-                    getHost(),
-                    getPort(),
-                    getUsername()
-            );
+            String username = getUsername();
+            if (username.isBlank()) {
+                statusLabel.setText("Username is required");
+                return;
+            }
 
-            statusLabel.setText("Login clicked. Presenter/network will be added next.");
-            log.debug(message);
+            statusLabel.setText("Opening main chat window...");
+            MainFrame mainFrame = new MainFrame(username);
+            mainFrame.setVisible(true);
+            dispose();
         });
 
         getRootPane().setDefaultButton(loginButton);
