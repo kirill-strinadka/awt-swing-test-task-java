@@ -10,18 +10,27 @@ import com.kstrinadka.chat.server.application.SendMessageUseCase;
 import com.kstrinadka.chat.server.application.SessionFactory;
 import com.kstrinadka.chat.server.application.SessionRegistry;
 import com.kstrinadka.chat.server.application.UserRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.kstrinadka.chat.server.config.ServerConfig;
 import com.kstrinadka.chat.server.config.TestUsersConfig;
 import com.kstrinadka.chat.server.domain.User;
 import com.kstrinadka.chat.server.infrastructure.DefaultAuthenticationService;
+import com.kstrinadka.chat.server.infrastructure.DefaultClientConnectionFactory;
 import com.kstrinadka.chat.server.infrastructure.DefaultMessageDeliveryService;
 import com.kstrinadka.chat.server.infrastructure.DefaultMessageService;
+import com.kstrinadka.chat.server.infrastructure.DefaultProtocolValidator;
 import com.kstrinadka.chat.server.infrastructure.DefaultRequestDispatcher;
 import com.kstrinadka.chat.server.infrastructure.DefaultSessionFactory;
 import com.kstrinadka.chat.server.infrastructure.InMemorySessionRegistry;
 import com.kstrinadka.chat.server.infrastructure.InMemoryUserRepository;
+import com.kstrinadka.chat.server.infrastructure.JacksonProtocolMessageCodec;
 import com.kstrinadka.chat.server.infrastructure.Sha256PasswordVerifier;
+import com.kstrinadka.chat.server.infrastructure.SessionUnregistrationCloseHandler;
 import com.kstrinadka.chat.server.infrastructure.UuidMessageIdGenerator;
+import com.kstrinadka.chat.server.transport.ChatServer;
+import com.kstrinadka.chat.server.transport.DefaultConnectionContextFactory;
 
 import java.time.Clock;
 import java.util.HashMap;
@@ -62,14 +71,38 @@ public final class ApplicationAssembler {
         );
         RequestDispatcher requestDispatcher = new DefaultRequestDispatcher(authUseCase, sendMessageUseCase);
 
+        ObjectMapper objectMapper = new ObjectMapper()
+                .registerModule(new JavaTimeModule())
+                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        JacksonProtocolMessageCodec codec = new JacksonProtocolMessageCodec(objectMapper);
+        DefaultProtocolValidator protocolValidator = new DefaultProtocolValidator(serverConfig.maxMessageLength());
+        int maxRawMessageLength = rawMessageLineLimit(serverConfig);
+        var clientConnectionFactory = new DefaultClientConnectionFactory(
+                codec,
+                protocolValidator,
+                requestDispatcher,
+                new DefaultConnectionContextFactory(),
+                new SessionUnregistrationCloseHandler(sessionRegistry),
+                maxRawMessageLength
+        );
+        ChatServer chatServer = new ChatServer(serverConfig, clientConnectionFactory);
+
         return new ServerApplicationContext(
                 serverConfig,
                 userRepository,
                 sessionRegistry,
                 requestDispatcher,
                 messageService,
-                messageDeliveryService
+                messageDeliveryService,
+                chatServer
         );
+    }
+
+    /**
+     * Upper bound for one JSON line on the wire (includes framing fields, not only chat text).
+     */
+    private static int rawMessageLineLimit(ServerConfig config) {
+        return Math.max(8192, config.maxMessageLength() + 2048);
     }
 
     private static Map<String, User> buildUserMap(TestUsersConfig config, Sha256PasswordVerifier verifier) {
