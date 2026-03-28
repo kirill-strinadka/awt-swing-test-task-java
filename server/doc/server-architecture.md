@@ -18,7 +18,8 @@
 | Класс | Роль |
 |-------|------|
 | `ChatServerApplication` | `main`: старт приложения. |
-| `ApplicationAssembler` | Composition root: создаёт `ChatServer` и зависимости. |
+| `ApplicationAssembler` | Composition root: собирает `ServerApplicationContext` (репозитории, use cases, `RequestDispatcher`). Подключение `ChatServer` и codec — следующий шаг. |
+| `ServerApplicationContext` | Record с проводкой ядра для встраивания в transport. |
 
 ### `config`
 
@@ -42,6 +43,7 @@
 | `ClientRequest` / `AuthRequest`, `SendMessageRequest` | Входящие сообщения клиента (sealed). |
 | `ServerResponse` / ответы `Auth*`, `Ack`, `Incoming`, `Error` | Исходящие сообщения сервера. |
 | `ProtocolMessageCodec` | Строка ↔ DTO. |
+| `ProtocolTypes` | Константы поля `type` в JSON (`AUTH_OK`, `ACK`, …). |
 | `ProtocolValidator` | Валидация структуры после decode. |
 | `ProtocolException` | Ошибки протокола/формата. |
 
@@ -51,7 +53,7 @@
 |-----|------|
 | `RequestDispatcher` | Маршрутизация `ClientRequest` → нужный use case; возвращает **один** `ServerResponse` для **этого** сокета. |
 | `AuthUseCase` | Сценарий `AUTH`: проверка, регистрация в `SessionRegistry`, отметка контекста. |
-| `SendMessageUseCase` | Сценарий `SEND`: проверки, `MessageService.prepareMessage`, доставка `INCOMING` через `MessageDeliveryService`, возврат `ACK` или `ERROR` отправителю. |
+| `SendMessageUseCase` | Сценарий `SEND`: `UserRepository`, `SessionRegistry`, `MessageService.prepareMessage`, доставка `INCOMING` через `MessageDeliveryService`, возврат `ACK` или `ERROR` отправителю. |
 | `AuthenticationService` | Проверка логина/пароля. |
 | `MessageService` | Подготовка доменного `ChatMessage` и правил на уровне сообщения (без записи в чужой сокет). |
 | `MessageDeliveryService` | Push `IncomingMessageResponse` в **другой** `ConnectionContext` (должен быть thread-safe вместе с `OutboundChannel`). |
@@ -84,4 +86,4 @@
 
 ## Состояние реализации
 
-На этапе каркаса часть методов намеренно бросает `UnsupportedOperationException` или не заполнена — см. исходники. Документ описывает **целевую** раскладку ответственности.
+Реализованы use cases (`AuthUseCase`, `SendMessageUseCase`), `DefaultRequestDispatcher`, in-memory репозитории/реестр, `DefaultAuthenticationService`, `DefaultMessageService`, `DefaultMessageDeliveryService`, фабрики и verifier/generator; сборка — `ApplicationAssembler.assemble(ServerConfig, TestUsersConfig)` → `ServerApplicationContext`. Транспорт (`ChatServer`, `SocketClientConnection`), JSON codec и валидатор пока не подключены к end-to-end запуску.

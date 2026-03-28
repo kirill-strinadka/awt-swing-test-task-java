@@ -17,7 +17,8 @@ server/
             └── com/kstrinadka/chat/server/
                 ├── bootstrap/
                 │   ├── ApplicationAssembler.java
-                │   └── ChatServerApplication.java
+                │   ├── ChatServerApplication.java
+                │   └── ServerApplicationContext.java
                 ├── config/
                 │   ├── ServerConfig.java
                 │   └── TestUsersConfig.java
@@ -40,6 +41,7 @@ server/
                 │   ├── IncomingMessageResponse.java
                 │   ├── ProtocolException.java
                 │   ├── ProtocolMessageCodec.java
+                │   ├── ProtocolTypes.java
                 │   ├── ProtocolValidator.java
                 │   ├── SendMessageRequest.java
                 │   └── ServerResponse.java

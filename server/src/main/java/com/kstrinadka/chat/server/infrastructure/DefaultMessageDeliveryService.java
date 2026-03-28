@@ -8,6 +8,17 @@ public final class DefaultMessageDeliveryService implements MessageDeliveryServi
 
     @Override
     public boolean deliver(ConnectionContext recipientConnection, IncomingMessageResponse incoming) {
-        throw new UnsupportedOperationException("not implemented");
+        if (recipientConnection == null || incoming == null) {
+            return false;
+        }
+        if (!recipientConnection.isAuthenticated()) {
+            return false;
+        }
+        try {
+            recipientConnection.outboundChannel().send(incoming);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
 }
