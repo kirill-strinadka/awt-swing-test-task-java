@@ -28,7 +28,7 @@ public final class DefaultMessageService implements MessageService {
     }
 
     @Override
-    public DeliveryResult sendMessage(String from, String to, String text, String clientMessageId) {
+    public DeliveryResult prepareMessage(String from, String to, String text, String clientMessageId) {
         throw new UnsupportedOperationException("not implemented");
     }
 }

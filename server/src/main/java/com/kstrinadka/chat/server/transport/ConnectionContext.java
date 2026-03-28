@@ -9,6 +9,14 @@ public final class ConnectionContext {
         throw new UnsupportedOperationException("not implemented");
     }
 
+    public ConnectionState connectionState() {
+        throw new UnsupportedOperationException("not implemented");
+    }
+
+    public OutboundChannel outboundChannel() {
+        throw new UnsupportedOperationException("not implemented");
+    }
+
     public Optional<String> authenticatedUsername() {
         throw new UnsupportedOperationException("not implemented");
     }
@@ -18,6 +26,10 @@ public final class ConnectionContext {
     }
 
     public void markAuthenticated(String username) {
+        throw new UnsupportedOperationException("not implemented");
+    }
+
+    public void markClosed() {
         throw new UnsupportedOperationException("not implemented");
     }
 

@@ -1,10 +1,10 @@
 package com.kstrinadka.chat.server.infrastructure;
 
 import com.kstrinadka.chat.server.application.AuthUseCase;
-import com.kstrinadka.chat.server.application.DispatchResult;
 import com.kstrinadka.chat.server.application.RequestDispatcher;
 import com.kstrinadka.chat.server.application.SendMessageUseCase;
 import com.kstrinadka.chat.server.protocol.ClientRequest;
+import com.kstrinadka.chat.server.protocol.ServerResponse;
 import com.kstrinadka.chat.server.transport.ConnectionContext;
 
 public final class DefaultRequestDispatcher implements RequestDispatcher {
@@ -18,7 +18,7 @@ public final class DefaultRequestDispatcher implements RequestDispatcher {
     }
 
     @Override
-    public DispatchResult dispatch(ConnectionContext context, ClientRequest request) {
+    public ServerResponse dispatch(ConnectionContext context, ClientRequest request) {
         throw new UnsupportedOperationException("not implemented");
     }
 }
