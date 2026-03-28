@@ -4,11 +4,11 @@
 
 ## Идея слоёв
 
-1. **Transport** — сокеты, цикл чтения строк, жизненный цикл соединения, отправка байтов. Не содержит бизнес-правил чата.
-2. **Protocol** — DTO запросов/ответов, кодек JSON, проверка формата полей (длина, обязательность). Не знает, залогинен ли пользователь.
-3. **Application** — сценарии (use cases), порты (`SessionRegistry`, `UserRepository`, сервисы). Собирает ответ для **текущего** соединения; push получателю — через `MessageDeliveryService`.
+1. **Transport** — сокеты, accept-loop, **виртуальный поток на каждое соединение**, построчное чтение UTF-8, вызов codec/validator/dispatcher, запись ответов. Без правил предметной области чата.
+2. **Protocol** — DTO запросов/ответов, кодек JSON, проверка формата полей. Не знает, залогинен ли пользователь.
+3. **Application** — сценарии (use cases), порты (`SessionRegistry`, `UserRepository`, сервисы). Возвращает **один** `ServerResponse` для **текущего** соединения; push получателю — через `MessageDeliveryService`.
 4. **Domain** — сущности и типы результатов (пользователь, сообщение, сессия, коды ошибок auth/delivery).
-5. **Infrastructure** — реализации портов (in-memory репозитории, Jackson, дефолтные сервисы).
+5. **Infrastructure** — реализации портов (in-memory репозитории, Jackson, дефолтные сервисы, фабрика сокет-соединений).
 6. **Config / Bootstrap** — настройки и ручная сборка графа зависимостей без Spring.
 
 ## Пакеты и роли
@@ -17,16 +17,16 @@
 
 | Класс | Роль |
 |-------|------|
-| `ChatServerApplication` | `main`: старт приложения. |
-| `ApplicationAssembler` | Composition root: собирает `ServerApplicationContext` (репозитории, use cases, `RequestDispatcher`). Подключение `ChatServer` и codec — следующий шаг. |
-| `ServerApplicationContext` | Record с проводкой ядра для встраивания в transport. |
+| `ChatServerApplication` | `main`: `ServerConfig` + `TestUsersConfig`, `ApplicationAssembler.assemble(...)`, `ChatServer.start()`, shutdown-hook. |
+| `ApplicationAssembler` | Composition root: репозитории, use cases, `RequestDispatcher`, `ObjectMapper` + `JacksonProtocolMessageCodec`, `DefaultProtocolValidator`, `DefaultClientConnectionFactory`, `ChatServer`. |
+| `ServerApplicationContext` | Record: экспонированные для тестов/расширений части ядра плюс `ChatServer`. |
 
 ### `config`
 
 | Тип | Роль |
 |-----|------|
-| `ServerConfig` | Хост, порт, таймауты, лимиты сообщения, политика одной сессии на пользователя. |
-| `TestUsersConfig` | Предопределённые пользователи для стенда. |
+| `ServerConfig` | `host`, `port`, `socketReadTimeoutMillis`, `maxMessageLength`, `singleSessionPerUser`. Последнее поле **зарезервировано**: на текущей версии логика входа опирается на `SessionRegistry.register` (`putIfAbsent` → один активный логин = одна сессия), флаг из конфига нигде не читается. |
+| `TestUsersConfig` | Предопределённые пользователи: в конфиге пароли **в открытом виде**, при сборке в `User` кладётся SHA-256 hex (см. `ApplicationAssembler.buildUserMap`). |
 
 ### `domain`
 
@@ -34,16 +34,16 @@
 |-----|------|
 | `User`, `ChatMessage`, `SessionId`, `ClientSession` | Модель предметной области. |
 | `AuthResult`, `AuthErrorCode` | Результат проверки учётных данных. |
-| `DeliveryResult`, `DeliveryErrorCode` | Результат подготовки сообщения к отправке (`prepareMessage`), не запись в сокет. |
+| `DeliveryResult`, `DeliveryErrorCode` | Результат `prepareMessage`, не запись в сокет. |
 
 ### `protocol`
 
 | Тип | Роль |
 |-----|------|
 | `ClientRequest` / `AuthRequest`, `SendMessageRequest` | Входящие сообщения клиента (sealed). |
-| `ServerResponse` / ответы `Auth*`, `Ack`, `Incoming`, `Error` | Исходящие сообщения сервера. |
+| `ServerResponse` / `AuthOkResponse`, `AuthErrorResponse`, `AckResponse`, `IncomingMessageResponse`, `ErrorResponse` | Исходящие сообщения сервера. |
 | `ProtocolMessageCodec` | Строка ↔ DTO. |
-| `ProtocolTypes` | Константы поля `type` в JSON (`AUTH_OK`, `ACK`, …). |
+| `ProtocolTypes` | Константы поля `type` в JSON. |
 | `ProtocolValidator` | Валидация структуры после decode. |
 | `ProtocolException` | Ошибки протокола/формата. |
 
@@ -51,39 +51,46 @@
 
 | Тип | Роль |
 |-----|------|
-| `RequestDispatcher` | Маршрутизация `ClientRequest` → нужный use case; возвращает **один** `ServerResponse` для **этого** сокета. |
-| `AuthUseCase` | Сценарий `AUTH`: проверка, регистрация в `SessionRegistry`, отметка контекста. |
-| `SendMessageUseCase` | Сценарий `SEND`: `UserRepository`, `SessionRegistry`, `MessageService.prepareMessage`, доставка `INCOMING` через `MessageDeliveryService`, возврат `ACK` или `ERROR` отправителю. |
-| `AuthenticationService` | Проверка логина/пароля. |
-| `MessageService` | Подготовка доменного `ChatMessage` и правил на уровне сообщения (без записи в чужой сокет). |
-| `MessageDeliveryService` | Push `IncomingMessageResponse` в **другой** `ConnectionContext` (должен быть thread-safe вместе с `OutboundChannel`). |
-| `SessionRegistry` | Онлайн-пользователи: регистрация, поиск соединения по username, unregister. |
-| `UserRepository` | Справочник известных пользователей. |
-| `SessionFactory` | Создание `ClientSession` при успешном входе. |
-| `PasswordVerifier`, `MessageIdGenerator` | Порты для паролей и id сообщений. |
+| `RequestDispatcher` | Маршрутизация `ClientRequest` → use case; один `ServerResponse` на запрос для **этого** сокета. |
+| `AuthUseCase` | `AUTH`: `AuthenticationService` → `SessionRegistry.register` → `ConnectionContext.markAuthenticated` → `AUTH_OK` / `AUTH_ERROR`. |
+| `SendMessageUseCase` | `SEND`: проверка сессии, `UserRepository`, онлайн получатель, `MessageService.prepareMessage`, `MessageDeliveryService.deliver` → `ACK` / `ERROR` отправителю. |
+| `AuthenticationService`, `MessageService`, `MessageDeliveryService` | Порты: вход, подготовка сообщения, доставка в чужой `OutboundChannel`. |
+| `SessionRegistry`, `UserRepository`, `SessionFactory` | Онлайн-сессии, справочник пользователей, создание `ClientSession`. |
+| `PasswordVerifier`, `MessageIdGenerator` | Пароли и id сообщений. |
 
 ### `transport`
 
 | Тип | Роль |
 |-----|------|
-| `ChatServer` | `ServerSocket`, accept loop, виртуальные потоки на соединение (план). |
-| `ClientConnection` / `SocketClientConnection` | Один клиент: read line → codec → validator → dispatcher → отправка ответа; cleanup. |
-| `ClientConnectionFactory`, `ConnectionContextFactory` | Фабрики для тестов и сборки. |
-| `ConnectionContext` | Состояние одного соединения (`ConnectionState`), username, ссылка на `ClientConnection`, **`OutboundChannel`**. |
+| `ChatServer` | `ServerSocket`, цикл `accept`, на каждый `Socket` — задача на **виртуальном потоке** (`connection::run`). |
+| `SocketClientConnection` | Цикл: `readLine` → лимит длины сырой строки → decode → validate → dispatch → encode → запись; синхронизация записи в сокет (`writeLock`); при закрытии — `ConnectionCloseHandler`. |
+| `ClientConnection` | Интерфейс соединения (`run`, `send`, `close`, `isOpen`). |
+| `ClientConnectionFactory` | Создание `ClientConnection` из `Socket` (реализация в infrastructure). |
+| `ConnectionContextFactory` / `DefaultConnectionContextFactory` | Создание `ConnectionContext` для сокета. |
+| `ConnectionContext` | Состояние соединения, имя пользователя после входа, `OutboundChannel`. |
 | `ConnectionState` | `CONNECTED` / `AUTHENTICATED` / `CLOSED`. |
-| `OutboundChannel` | Потокобезопасная запись `ServerResponse` в конкретный сокет. |
+| `OutboundChannel` | Отправка `ServerResponse` в конкретный сокет (реализация — метод записи соединения). |
+| `ConnectionCloseHandler` | Callback при завершении соединения (например снятие с регистрации в `SessionRegistry`). |
 
 ### `infrastructure`
 
-Реализации: Jackson-кодек, валидатор, in-memory репозитории и реестр, дефолтные auth/message/delivery/dispatcher/session factory, SHA-256 verifier (или замена), UUID id generator.
+| Тип | Роль |
+|-----|------|
+| `JacksonProtocolMessageCodec` | Реализация `ProtocolMessageCodec`. |
+| `DefaultProtocolValidator` | Реализация `ProtocolValidator`. |
+| `InMemoryUserRepository`, `InMemorySessionRegistry` | In-memory хранилища. |
+| `DefaultAuthenticationService`, `DefaultMessageService`, `DefaultMessageDeliveryService`, `DefaultRequestDispatcher`, `DefaultSessionFactory` | Дефолтные сценарии и разбор запросов. |
+| `Sha256PasswordVerifier`, `UuidMessageIdGenerator` | Хеш пароля и id сообщений. |
+| `DefaultClientConnectionFactory` | Собирает `SocketClientConnection` с codec, validator, dispatcher, фабрикой контекста, close-handler, лимитом строки. |
+| `SessionUnregistrationCloseHandler` | При закрытии сокета снимает пользователя из `SessionRegistry`, если был аутентифицирован. |
 
-## Зависимости между слоями (целевое правило)
+## Зависимости между слоями
 
-- Transport зависит от protocol и application (dispatcher, codec).
-- Application может ссылаться на `ConnectionContext` (реестр сессий по username → контекст).
+- Transport зависит от protocol и application (dispatcher, codec через фабрику).
+- Application использует `ConnectionContext` (сессии, отправитель/получатель).
 - Domain не зависит от Jackson и сокетов.
-- Infrastructure реализует интерфейсы application/protocol.
+- Infrastructure реализует интерфейсы application/protocol и подключает transport-фабрики.
 
-## Состояние реализации
+## Состояние реализации (end-to-end)
 
-Реализованы use cases (`AuthUseCase`, `SendMessageUseCase`), `DefaultRequestDispatcher`, in-memory репозитории/реестр, `DefaultAuthenticationService`, `DefaultMessageService`, `DefaultMessageDeliveryService`, фабрики и verifier/generator; сборка — `ApplicationAssembler.assemble(ServerConfig, TestUsersConfig)` → `ServerApplicationContext`. Транспорт (`ChatServer`, `SocketClientConnection`), JSON codec и валидатор пока не подключены к end-to-end запуску.
+Сборка `ApplicationAssembler.assemble(ServerConfig, TestUsersConfig)` возвращает `ServerApplicationContext` с готовым `ChatServer`. На каждое входящее соединение создаётся `SocketClientConnection` с `JacksonProtocolMessageCodec`, `DefaultProtocolValidator` и `DefaultRequestDispatcher`. Запуск: `ChatServerApplication.main`.

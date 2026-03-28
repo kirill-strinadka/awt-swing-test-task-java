@@ -2,7 +2,7 @@
 
 Документ описывает **протокол на уровне приложения** модуля `server`: как устроен обмен данными по TCP и как клиенту корректно отправлять запросы и обрабатывать ответы.
 
-Реализация транспорта: `ChatServer`, `SocketClientConnection`. Кодирование сообщений: `JacksonProtocolMessageCodec` (Jackson + `JavaTimeModule`, даты **не** в виде числовых timestamp).
+Реализация транспорта: `ChatServer`, `SocketClientConnection`. Кодирование сообщений: `JacksonProtocolMessageCodec` (Jackson + `JavaTimeModule`, даты **не** в виде числовых timestamp). На стороне сервера каждое принятое TCP-соединение обслуживается в **отдельном виртуальном потоке** (Java 21). Устройство слоёв и классов — в [server-architecture.md](server-architecture.md), цепочка вызовов — в [request-flow.md](request-flow.md).
 
 ---
 
@@ -32,6 +32,7 @@
 | Порт | `9000` |
 | Таймаут чтения сокета | `60000` мс |
 | Макс. длина текста сообщения чата (`SEND.text`) | `4096` символов |
+| `singleSessionPerUser` в `ServerConfig` | В `main` передаётся `false`; поле пока **не используется** бизнес-логикой — фактически один логин = одна активная сессия обеспечивается `SessionRegistry` (`putIfAbsent`). |
 | Пользователи (логин → пароль в открытом виде в конфиге, на сервере хранится хеш) | `alice` / `alicepwd`, `bob` / `bobpwd` |
 
 Верхняя граница длины **сырой** строки запроса (весь JSON) на сервере: `max(8192, maxMessageLength + 2048)` — см. `ApplicationAssembler.rawMessageLineLimit`.
@@ -397,4 +398,4 @@ try (Socket socket = new Socket("127.0.0.1", 9000);
 
 ---
 
-*Документ соответствует коду в пакете `com.kstrinadka.chat.server` на момент составления. При изменении `ServerConfig`, валидатора или кодека сверяйте поля JSON с классами записей в `...protocol.*` и с `JacksonProtocolMessageCodec` / `DefaultProtocolValidator`.*
+*При изменении `ServerConfig`, валидатора или кодека сверяйте поля JSON с записями в `com.kstrinadka.chat.server.protocol` и с реализациями `JacksonProtocolMessageCodec`, `DefaultProtocolValidator`, `SocketClientConnection`, а также с ответами use cases в `application`.*

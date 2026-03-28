@@ -4,18 +4,19 @@
 
 ## Жизненный цикл TCP-соединения
 
-1. `ChatServer` принимает `Socket`.
-2. Создаются `ConnectionContext` (с `OutboundChannel`) и `ClientConnection` (например `SocketClientConnection`).
-3. Запускается обработка (план: virtual thread): цикл чтения строк UTF-8, одна строка = один JSON-запрос.
-4. На каждую строку: **decode** (`ProtocolMessageCodec`) → **validate** (`ProtocolValidator`) → **dispatch** (`RequestDispatcher`).
-5. Результат `dispatch` — один `ServerResponse` для **этого** клиента → encode → запись через `OutboundChannel` / соединение.
-6. При обрыве: если был залогинен — `SessionRegistry.unregister`, закрытие ресурсов, `ConnectionState.CLOSED`.
+1. `ChatServer` принимает `Socket`, выставляет `SoTimeout` из `ServerConfig`, создаёт `ClientConnection` через `ClientConnectionFactory`.
+2. Задача **`connection.run()`** выполняется в **виртуальном потоке** (пул `newVirtualThreadPerTaskExecutor`).
+3. Создаются `BufferedReader` / `BufferedWriter` (UTF-8), `OutboundChannel`, `ConnectionContext` через `ConnectionContextFactory`.
+4. Цикл: чтение строки (`readLine`) — одна непустая логическая строка = один JSON-запрос (разделитель `\n`).
+5. На каждую непустую строку: проверка лимита длины сырой строки → **decode** (`ProtocolMessageCodec`) → **validate** (`ProtocolValidator`) → **dispatch** (`RequestDispatcher`).
+6. Результат `dispatch` (если не `null`) — один `ServerResponse` для **этого** клиента → encode → запись в сокет под `writeLock`, завершение строки `\n`.
+7. При завершении цикла или ошибке: `ConnectionCloseHandler.onConnectionClosed` (снятие сессии при необходимости), закрытие сокета, `ConnectionState.CLOSED`.
 
 ## AUTH (успех)
 
 `SocketClientConnection` → codec → validator → `RequestDispatcher` → `AuthUseCase.handle`.
 
-Внутри: `AuthenticationService` → при успехе `SessionFactory` + `SessionRegistry.register` → `ConnectionContext.markAuthenticated` → ответ `AUTH_OK` (или `AUTH_ERROR` при ошибке).
+Внутри: `AuthenticationService` → при успехе `SessionFactory` + `SessionRegistry.register` → `ConnectionContext.markAuthenticated` → `AUTH_OK` (или `AUTH_ERROR`).
 
 Ответ уходит в тот же сокет.
 
@@ -23,27 +24,27 @@
 
 `RequestDispatcher` → `SendMessageUseCase.handle`.
 
-Последовательность (целевая):
+1. Отправитель аутентифицирован (`ConnectionContext`).
+2. Получатель существует в `UserRepository` (имя `to` после `strip()`).
+3. Получатель онлайн: `SessionRegistry.findConnectionByUsername`.
+4. `MessageService.prepareMessage` → `ChatMessage` или `DeliveryResult.Failure`.
+5. Сборка `IncomingMessageResponse`.
+6. `MessageDeliveryService.deliver(recipientContext, incoming)` → запись в сокет получателя через его `OutboundChannel` (там тоже используется синхронизация записи).
+7. Успех → `ACK` отправителю; сбой доставки → `ERROR` с `DELIVERY_FAILED`.
 
-1. Проверка, что отправитель аутентифицирован (`ConnectionContext`).
-2. Существование получателя (`UserRepository`).
-3. Поиск онлайн-соединения получателя (`SessionRegistry`).
-4. `MessageService.prepareMessage` → доменный `ChatMessage` или `DeliveryResult.Failure`.
-5. Сборка `IncomingMessageResponse` для получателя.
-6. `MessageDeliveryService.deliver(recipientContext, incoming)` — внутри вызов `recipientContext.outboundChannel().send(...)`.
-7. При успешной доставке — `ACK` отправителю; при сбое — `ERROR` (например offline / ошибка записи).
-
-Важно: **получатель** не получает ответ через возвращаемое значение `dispatch`; он получает push через `MessageDeliveryService`.
+Получатель **не** получает ответ через возврат из `dispatch`; только push через доставку.
 
 ## SEND (получатель offline или не найден)
 
-Use case не вызывает успешную доставку; в сокет отправителя уходит `ERROR` с соответствующим кодом.
+В сокет отправителя уходит `ERROR` с соответствующим кодом (`RECIPIENT_OFFLINE`, `RECIPIENT_NOT_FOUND`, …).
 
-## Протокольные ошибки
+## Протокольные и транспортные ошибки
 
-Зависит от политики MVP: часто `ERROR` в текущий сокет; при фатально битом JSON возможно закрытие соединения после ответа или сразу.
+- Пустая/пробельная строка, слишком длинная строка, битый JSON, ошибки валидации: в тот же сокет уходит строка `ERROR` с кодами вроде `EMPTY_REQUEST`, `REQUEST_TOO_LARGE`, `PROTOCOL_ERROR`; соединение **остаётся открытым**, цикл чтения продолжается.
+- Необработанное исключение в обработчике: `INTERNAL_ERROR`, соединение снова остаётся открытым до следующей строки или обрыва.
+- Исключения записи в сокет: соединение закрывается.
 
 ## Конкурентность
 
-- Один поток (или virtual thread) **читает** свой сокет последовательно.
-- В **один** сокет могут **писать** разные потоки (свой handler и чужой `MessageDeliveryService`), поэтому `OutboundChannel.send` должен быть синхронизирован.
+- Каждое соединение читает свой сокет **последовательно** в своём виртуальном потоке.
+- В **один** сокет могут писать разные потоки (свой цикл и чужой `MessageDeliveryService`), поэтому запись в `SocketClientConnection` сериализуется (`writeLock`).

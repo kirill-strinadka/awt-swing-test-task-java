@@ -6,26 +6,26 @@
 
 | Модуль | Артефакт | Назначение |
 |--------|-----------|------------|
-| **server** | `server` | TCP чат-сервер: JSON line protocol, виртуальные потоки (план), in-memory пользователи и сессии. Основная логика и документация в `server/doc/`. |
-| **client** | `client` | Клиентское приложение (заготовка: точка входа `com.kstrinadka.Main`). Планируется подключение к серверу и UI (например Swing). |
-| **common** | `common` | Общий код для client/server (заготовка: `com.kstrinadka.Main`). Планируется вынести общие DTO протокола или утилиты, если появятся. |
+| **server** | `server` | Рабочий TCP чат-сервер: **line-delimited JSON**, виртуальные потоки на соединение (`Executors.newVirtualThreadPerTaskExecutor()`), in-memory пользователи и сессии. Документация в `server/doc/`. |
+| **client** | `client` | Заготовка под клиент (точка входа `com.kstrinadka.Main`). План: UI (например Swing) и подключение к серверу по протоколу из [server-api.md](server-api.md). |
+| **common** | `common` | Заготовка общего кода (`com.kstrinadka.Main`). План: вынести общие DTO протокола или утилиты, если появятся. |
 
-Связей Maven между модулями (`dependency` client → common и т.д.) на момент описания может ещё не быть — каждый модуль собирается отдельно.
+Между модулями **нет** Maven-зависимостей: `client` и `common` не подключают `server` как библиотеку; каждый модуль собирается отдельно.
 
-## Что уже задумано на уровне продукта
+## Продукт (MVP)
 
-- Сервер принимает TCP-соединения, аутентификация по логину/паролю, команды клиента, доставка сообщений **только между пользователями в онлайне**.
-- Без истории сообщений, без БД, без регистрации и групп (MVP).
+- Сервер принимает TCP, аутентификация логин/пароль, команды `AUTH` и `SEND`, доставка сообщений **только онлайн-пользователям**.
+- Нет истории сообщений, БД, регистрации и групповых чатов.
 
 ## Технологии (модуль `server`)
 
-- **Jackson** — сериализация протокола JSON.
+- **Jackson** (`jackson-databind`, `jackson-datatype-jsr310`) — JSON протокола, даты в ISO-8601 строках.
 - **SLF4J + Logback** — логирование.
-- **JUnit 5, AssertJ, Mockito** — тесты (подключены, тестовый код по мере появления).
+- **JUnit 5, AssertJ, Mockito** — тесты (есть unit/smoke под `server/src/test/java`).
 
-Spring Boot в сервере не используется.
+Spring Boot не используется; зависимости собираются вручную в `ApplicationAssembler`.
 
-## Сборка
+## Сборка и тесты
 
 Из корня репозитория:
 
@@ -39,9 +39,19 @@ mvn compile
 mvn -pl server compile
 ```
 
+Тесты модуля `server`:
+
+```text
+mvn -pl server test
+```
+
+## Запуск сервера
+
+Класс с `main`: `com.kstrinadka.chat.server.bootstrap.ChatServerApplication` (модуль `server`). Параметры по умолчанию (хост, порт, пользователи) заданы в коде `main`; подробная таблица — в [server-api.md](server-api.md), раздел «Параметры сервера по умолчанию».
+
 ## Где искать код
 
 - Сервер: `server/src/main/java/com/kstrinadka/chat/server/`.
-- Клиент и common: `client/src/main/java/`, `common/src/main/java/` — пока минимальные заглушки.
+- Клиент и common: `client/src/main/java/`, `common/src/main/java/` — минимальные заглушки.
 
-Подробности по слоям сервера: [server-architecture.md](server-architecture.md).
+Слои и пакеты сервера: [server-architecture.md](server-architecture.md). Контракт сокета: [server-api.md](server-api.md).
