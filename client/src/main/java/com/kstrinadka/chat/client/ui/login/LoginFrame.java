@@ -3,6 +3,7 @@ package com.kstrinadka.chat.client.ui.login;
 import com.kstrinadka.chat.client.presentation.login.LoginPresenter;
 import com.kstrinadka.chat.client.presentation.login.LoginSuccessHandler;
 import com.kstrinadka.chat.client.presentation.login.LoginView;
+import com.kstrinadka.chat.client.ui.login.components.LoginFormPanel;
 
 import javax.swing.*;
 import java.awt.BorderLayout;
@@ -39,6 +40,11 @@ public class LoginFrame extends JFrame implements LoginView {
         bindActions();
     }
 
+    private void bindActions() {
+        loginButton.addActionListener(e -> presenter.onLoginClicked());
+        getRootPane().setDefaultButton(loginButton);
+    }
+
     private void initFrame() {
         setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
         setMinimumSize(new Dimension(420, 460));
@@ -51,13 +57,18 @@ public class LoginFrame extends JFrame implements LoginView {
         root.setBorder(BorderFactory.createEmptyBorder(24, 24, 24, 24));
         setContentPane(root);
 
-        JPanel footerPanel = new JPanel(new BorderLayout());
-        footerPanel.setBorder(BorderFactory.createEmptyBorder(18, 8, 8, 8));
-        footerPanel.add(statusLabel, BorderLayout.CENTER);
-
-        root.add(createHeaderPanel(), BorderLayout.NORTH);
-        root.add(createFormPanel(), BorderLayout.CENTER);
-        root.add(footerPanel, BorderLayout.SOUTH);
+        root.add(
+                createHeaderPanel(),
+                BorderLayout.NORTH
+        );
+        root.add(
+                createLoginFramePanel(),
+                BorderLayout.CENTER
+        );
+        root.add(
+                createFooterPanel(),
+                BorderLayout.SOUTH
+        );
     }
 
     private JPanel createHeaderPanel() {
@@ -85,49 +96,15 @@ public class LoginFrame extends JFrame implements LoginView {
         return headerPanel;
     }
 
-    private JPanel createFormPanel() {
-        JPanel formPanel = new JPanel();
-        formPanel.setLayout(new BoxLayout(formPanel, BoxLayout.Y_AXIS));
-        formPanel.setBorder(BorderFactory.createEmptyBorder(8, 24, 8, 24));
-
-        formPanel.add(createInputFieldBlock("Host", hostField));
-        formPanel.add(Box.createVerticalStrut(14));
-
-        formPanel.add(createInputFieldBlock("Port", portField));
-        formPanel.add(Box.createVerticalStrut(14));
-
-        formPanel.add(createInputFieldBlock("Username", usernameField));
-        formPanel.add(Box.createVerticalStrut(14));
-
-        formPanel.add(createInputFieldBlock("Password", passwordField));
-        formPanel.add(Box.createVerticalStrut(22));
-
-        loginButton.setAlignmentX(Component.CENTER_ALIGNMENT);
-        loginButton.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
-        loginButton.setPreferredSize(new Dimension(160, 42));
-
-        formPanel.add(loginButton);
-        return formPanel;
+    private JPanel createLoginFramePanel() {
+        return new LoginFormPanel(hostField, portField, usernameField, passwordField, loginButton);
     }
 
-    private void bindActions() {
-        loginButton.addActionListener(e -> presenter.onLoginClicked());
-        getRootPane().setDefaultButton(loginButton);
-    }
-
-    private JPanel createInputFieldBlock(String labelText, JComponent field) {
-        JLabel label = new JLabel(labelText);
-        label.setBorder(BorderFactory.createEmptyBorder(0, 0, 6, 0));
-
-        field.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
-        field.setPreferredSize(new Dimension(320, 40));
-
-        JPanel panel = new JPanel();
-        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
-        panel.add(label);
-        panel.add(field);
-
-        return panel;
+    private JPanel createFooterPanel() {
+        JPanel footerPanel = new JPanel(new BorderLayout());
+        footerPanel.setBorder(BorderFactory.createEmptyBorder(18, 8, 8, 8));
+        footerPanel.add(statusLabel, BorderLayout.CENTER);
+        return footerPanel;
     }
 
     private JFormattedTextField createPortField() {
