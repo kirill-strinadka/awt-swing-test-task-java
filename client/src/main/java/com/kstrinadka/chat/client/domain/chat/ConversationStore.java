@@ -1,5 +1,6 @@
 package com.kstrinadka.chat.client.domain.chat;
 
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -11,6 +12,17 @@ public class ConversationStore {
     public Conversation getOrCreateConversation(String username) {
         Objects.requireNonNull(username, "username must not be null");
         return conversations.computeIfAbsent(username, Conversation::new);
+    }
+
+    public Conversation getConversation(String username) {
+        if (username == null || username.isBlank()) {
+            return null;
+        }
+        return conversations.get(username);
+    }
+
+    public Collection<Conversation> getAllConversations() {
+        return conversations.values();
     }
 
     public void addOutgoingMessage(String to, Message message) {
@@ -42,5 +54,19 @@ public class ConversationStore {
         }
 
         return null;
+    }
+
+    public boolean replaceMessageByClientMsgId(String clientMsgId, Message updatedMessage) {
+        if (clientMsgId == null || clientMsgId.isBlank() || updatedMessage == null) {
+            return false;
+        }
+
+        for (Conversation conversation : conversations.values()) {
+            if (conversation.replaceMessageByClientMsgId(clientMsgId, updatedMessage)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

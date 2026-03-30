@@ -1,12 +1,12 @@
 package com.kstrinadka.chat.client.ui.chat;
 
+import com.kstrinadka.chat.client.app.session.ClientSession;
 import com.kstrinadka.chat.client.presentation.chat.ChatPresenter;
 import com.kstrinadka.chat.client.presentation.chat.ChatView;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
-import javax.swing.DefaultListCellRenderer;
 import javax.swing.DefaultListModel;
 import javax.swing.JButton;
 import javax.swing.JComponent;
@@ -30,6 +30,9 @@ import java.util.List;
 
 public class MainFrame extends JFrame implements ChatView {
 
+    private static final String CARD_PLACEHOLDER = "placeholder";
+    private static final String CARD_CHAT = "chat";
+
     private static final Color WINDOW_BG = new Color(24, 33, 42);
     private static final Color SIDEBAR_BG = new Color(30, 40, 50);
     private static final Color CHAT_BG = new Color(18, 27, 34);
@@ -39,7 +42,8 @@ public class MainFrame extends JFrame implements ChatView {
     private static final Color TEXT_SECONDARY = new Color(150, 160, 170);
     private static final Color ERROR_COLOR = new Color(255, 120, 120);
 
-    private final JList<String> contactsList;
+    private final DefaultListModel<ConversationListItemVm> contactsModel;
+    private final JList<ConversationListItemVm> contactsList;
     private final JPanel messagesPanel;
     private final JScrollPane messagesScrollPane;
     private final JTextArea inputArea;
@@ -47,30 +51,38 @@ public class MainFrame extends JFrame implements ChatView {
     private final JLabel chatTitleLabel;
     private final JLabel chatSubtitleLabel;
     private final JLabel errorLabel;
+    private final JLabel placeholderLabel;
+
+    private final JPanel centerPanel;
+    private final java.awt.CardLayout centerCards;
 
     private final ChatPresenter presenter;
 
-    public MainFrame(String currentUsername) {
+    public MainFrame(ClientSession session) {
         super("Chat Client — Main");
 
-        DefaultListModel<String> contactsModel = new DefaultListModel<>();
-        contactsModel.addElement("alice");
-        contactsModel.addElement("bob");
-
+        contactsModel = new DefaultListModel<>();
         contactsList = new JList<>(contactsModel);
         messagesPanel = new JPanel();
         messagesScrollPane = new JScrollPane(messagesPanel);
         inputArea = new JTextArea(3, 20);
         sendButton = new JButton("Send");
-        chatTitleLabel = new JLabel("alice");
-        chatSubtitleLabel = new JLabel("MVP chat preview");
+        chatTitleLabel = new JLabel(" ");
+        chatSubtitleLabel = new JLabel(" ");
         errorLabel = new JLabel(" ");
+        placeholderLabel = new JLabel("Выберите чат слева", SwingConstants.CENTER);
 
-        presenter = new ChatPresenter(this, currentUsername);
+        centerCards = new java.awt.CardLayout();
+        centerPanel = new JPanel(centerCards);
+
+        presenter = new ChatPresenter(this, session);
 
         initFrame();
-        initUi(currentUsername);
+        initUi(session.username());
         bindActions();
+
+        session.setIncomingBridge(presenter::onIncoming);
+        session.setDisconnectBridge(presenter::onDisconnected);
 
         presenter.initialize();
     }
@@ -88,20 +100,20 @@ public class MainFrame extends JFrame implements ChatView {
         setContentPane(root);
 
         root.add(createSidebarPanel(currentUsername), BorderLayout.WEST);
-        root.add(createChatPanel(), BorderLayout.CENTER);
+        root.add(createCenterArea(), BorderLayout.CENTER);
     }
 
     private JComponent createSidebarPanel(String currentUsername) {
         JPanel sidebar = new JPanel(new BorderLayout());
         sidebar.setBackground(SIDEBAR_BG);
-        sidebar.setPreferredSize(new Dimension(280, 0));
+        sidebar.setPreferredSize(new Dimension(300, 0));
         sidebar.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, new Color(45, 58, 70)));
 
         JLabel profileLabel = new JLabel("Logged in as: " + currentUsername);
         profileLabel.setForeground(TEXT_PRIMARY);
         profileLabel.setFont(profileLabel.getFont().deriveFont(Font.BOLD, 14f));
 
-        JLabel sectionLabel = new JLabel("Contacts");
+        JLabel sectionLabel = new JLabel("Chats");
         sectionLabel.setForeground(TEXT_SECONDARY);
         sectionLabel.setFont(sectionLabel.getFont().deriveFont(Font.PLAIN, 12f));
 
@@ -118,12 +130,11 @@ public class MainFrame extends JFrame implements ChatView {
         topPanel.add(sectionLabel);
 
         contactsList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        contactsList.setSelectedIndex(0);
         contactsList.setBackground(SIDEBAR_BG);
         contactsList.setForeground(TEXT_PRIMARY);
-        contactsList.setFixedCellHeight(52);
+        contactsList.setFixedCellHeight(64);
         contactsList.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
-        contactsList.setCellRenderer(new ContactListCellRenderer());
+        contactsList.setCellRenderer(new ConversationListCellRenderer());
 
         JScrollPane contactsScrollPane = new JScrollPane(contactsList);
         contactsScrollPane.setBorder(null);
@@ -135,15 +146,24 @@ public class MainFrame extends JFrame implements ChatView {
         return sidebar;
     }
 
-    private JComponent createChatPanel() {
+    private JComponent createCenterArea() {
+        JPanel placeholderPanel = new JPanel(new BorderLayout());
+        placeholderPanel.setBackground(CHAT_BG);
+        placeholderLabel.setForeground(TEXT_SECONDARY);
+        placeholderLabel.setFont(placeholderLabel.getFont().deriveFont(Font.PLAIN, 18f));
+        placeholderPanel.add(placeholderLabel, BorderLayout.CENTER);
+
         JPanel chatPanel = new JPanel(new BorderLayout());
         chatPanel.setBackground(CHAT_BG);
-
         chatPanel.add(createHeaderPanel(), BorderLayout.NORTH);
         chatPanel.add(createMessagesArea(), BorderLayout.CENTER);
         chatPanel.add(createInputPanel(), BorderLayout.SOUTH);
 
-        return chatPanel;
+        centerPanel.add(placeholderPanel, CARD_PLACEHOLDER);
+        centerPanel.add(chatPanel, CARD_CHAT);
+
+        centerCards.show(centerPanel, CARD_PLACEHOLDER);
+        return centerPanel;
     }
 
     private JComponent createHeaderPanel() {
@@ -227,11 +247,9 @@ public class MainFrame extends JFrame implements ChatView {
     private void bindActions() {
         contactsList.addListSelectionListener(event -> {
             if (!event.getValueIsAdjusting()) {
-                String selectedUser = contactsList.getSelectedValue();
-                if (selectedUser != null) {
-                    chatTitleLabel.setText(selectedUser);
-                    chatSubtitleLabel.setText("Fake conversation preview");
-                }
+                ConversationListItemVm selected = contactsList.getSelectedValue();
+                errorLabel.setText(" ");
+                presenter.onConversationSelected(selected != null ? selected.username() : null);
             }
         });
 
@@ -248,8 +266,7 @@ public class MainFrame extends JFrame implements ChatView {
         messagesPanel.removeAll();
 
         for (MessageVm message : messages) {
-            MessageBubblePanel bubblePanel = new MessageBubblePanel(message);
-            messagesPanel.add(bubblePanel);
+            messagesPanel.add(new MessageBubblePanel(message));
         }
 
         messagesPanel.revalidate();
@@ -259,8 +276,7 @@ public class MainFrame extends JFrame implements ChatView {
 
     @Override
     public void appendMessage(MessageVm message) {
-        MessageBubblePanel bubblePanel = new MessageBubblePanel(message);
-        messagesPanel.add(bubblePanel);
+        messagesPanel.add(new MessageBubblePanel(message));
         messagesPanel.revalidate();
         messagesPanel.repaint();
         scrollToBottom();
@@ -283,42 +299,52 @@ public class MainFrame extends JFrame implements ChatView {
         errorLabel.setText(message == null || message.isBlank() ? " " : message);
     }
 
+    @Override
+    public void showConversationItems(List<ConversationListItemVm> items, String selectedUsername) {
+        contactsModel.clear();
+
+        int selectedIndex = -1;
+        for (int i = 0; i < items.size(); i++) {
+            ConversationListItemVm item = items.get(i);
+            contactsModel.addElement(item);
+            if (selectedUsername != null && selectedUsername.equals(item.username())) {
+                selectedIndex = i;
+            }
+        }
+
+        if (selectedIndex >= 0) {
+            contactsList.setSelectedIndex(selectedIndex);
+        } else {
+            contactsList.clearSelection();
+        }
+    }
+
+    @Override
+    public void showChatPlaceholder(String text) {
+        placeholderLabel.setText(text);
+        chatTitleLabel.setText(" ");
+        chatSubtitleLabel.setText(" ");
+        messagesPanel.removeAll();
+        messagesPanel.revalidate();
+        messagesPanel.repaint();
+        centerCards.show(centerPanel, CARD_PLACEHOLDER);
+    }
+
+    @Override
+    public void showChatContent() {
+        ConversationListItemVm selected = contactsList.getSelectedValue();
+        if (selected != null) {
+            chatTitleLabel.setText(selected.username());
+            chatSubtitleLabel.setText("Conversation");
+        }
+        centerCards.show(centerPanel, CARD_CHAT);
+    }
+
     private void scrollToBottom() {
         SwingUtilities.invokeLater(() ->
                 messagesScrollPane.getVerticalScrollBar().setValue(
                         messagesScrollPane.getVerticalScrollBar().getMaximum()
                 )
         );
-    }
-
-    private static final class ContactListCellRenderer extends DefaultListCellRenderer {
-
-        private static final Color SELECTED_BG = new Color(42, 58, 72);
-        private static final Color NORMAL_BG = SIDEBAR_BG;
-
-        @Override
-        public Component getListCellRendererComponent(
-                JList<?> list,
-                Object value,
-                int index,
-                boolean isSelected,
-                boolean cellHasFocus
-        ) {
-            JLabel label = (JLabel) super.getListCellRendererComponent(
-                    list,
-                    value,
-                    index,
-                    isSelected,
-                    cellHasFocus
-            );
-
-            label.setBorder(BorderFactory.createEmptyBorder(10, 14, 10, 14));
-            label.setFont(label.getFont().deriveFont(Font.PLAIN, 14f));
-            label.setForeground(TEXT_PRIMARY);
-            label.setBackground(isSelected ? SELECTED_BG : NORMAL_BG);
-            label.setOpaque(true);
-
-            return label;
-        }
     }
 }

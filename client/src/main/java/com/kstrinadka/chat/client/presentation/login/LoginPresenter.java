@@ -1,5 +1,6 @@
 package com.kstrinadka.chat.client.presentation.login;
 
+import com.kstrinadka.chat.client.app.session.ClientSession;
 import com.kstrinadka.chat.client.net.TcpChatClient;
 import com.kstrinadka.chat.client.net.TcpChatClientListener;
 import com.kstrinadka.chat.client.protocol.AuthErrorResponse;
@@ -80,11 +81,7 @@ public class LoginPresenter {
 
                 ServerResponse response = client.sendRequestAwaitResponse(authRequest).join();
 
-                if (!(response instanceof AuthOkResponse)) {
-                    client.disconnect();
-                }
-
-                SwingUtilities.invokeLater(() -> handleLoginResponse(response, username.trim()));
+                SwingUtilities.invokeLater(() -> handleLoginResponse(response, username.trim(), client));
             } catch (Exception ex) {
                 client.disconnect();
                 Throwable report = unwrapCompletion(ex);
@@ -103,13 +100,19 @@ public class LoginPresenter {
         return ex;
     }
 
-    private void handleLoginResponse(ServerResponse response, String username) {
+    private void handleLoginResponse(ServerResponse response, String username, TcpChatClient client) {
         if (response instanceof AuthOkResponse) {
+            ClientSession session = new ClientSession(username, client);
+
+            client.setListener(new LoginToRuntimeBridgeListener(session));
+
             view.setLoading(false);
             view.close();
-            successHandler.onLoginSuccess(username);
+            successHandler.onLoginSuccess(session);
             return;
         }
+
+        client.disconnect();
 
         if (response instanceof AuthErrorResponse authErrorResponse) {
             view.setLoading(false);
@@ -167,6 +170,34 @@ public class LoginPresenter {
         @Override
         public void onProtocolError(String rawLine, Throwable cause) {
             // No separate UI handling at this stage.
+        }
+    }
+
+    private static final class LoginToRuntimeBridgeListener implements TcpChatClientListener {
+
+        private final ClientSession session;
+
+        private LoginToRuntimeBridgeListener(ClientSession session) {
+            this.session = session;
+        }
+
+        @Override
+        public void onIncoming(IncomingResponse incomingResponse) {
+            if (session.incomingBridge() != null) {
+                session.incomingBridge().accept(incomingResponse);
+            }
+        }
+
+        @Override
+        public void onDisconnected(Throwable cause) {
+            if (session.disconnectBridge() != null) {
+                session.disconnectBridge().accept(cause);
+            }
+        }
+
+        @Override
+        public void onProtocolError(String rawLine, Throwable cause) {
+            // пока без отдельного UX
         }
     }
 }

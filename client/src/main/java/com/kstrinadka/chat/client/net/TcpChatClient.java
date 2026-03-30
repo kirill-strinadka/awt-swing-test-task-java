@@ -26,7 +26,7 @@ public class TcpChatClient implements AutoCloseable {
     private static final Logger log = LoggerFactory.getLogger(TcpChatClient.class);
 
     private final ProtocolCodec protocolCodec;
-    private final TcpChatClientListener listener;
+    private volatile TcpChatClientListener listener;
     private final ExecutorService readerExecutor;
     private final ConcurrentHashMap<String, CompletableFuture<ServerResponse>> pendingRequests =
             new ConcurrentHashMap<>();
@@ -51,6 +51,10 @@ public class TcpChatClient implements AutoCloseable {
             thread.setDaemon(true);
             return thread;
         });
+    }
+
+    public void setListener(TcpChatClientListener listener) {
+        this.listener = Objects.requireNonNull(listener, "listener must not be null");
     }
 
     public void connect(String host, int port) {

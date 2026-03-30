@@ -22,8 +22,8 @@ public final class Main {
         SwingUtilities.invokeLater(() -> {
             log.info("Starting chat client UI");
 
-            LoginFrame loginFrame = new LoginFrame(username -> {
-                MainFrame mainFrame = new MainFrame(username);
+            LoginFrame loginFrame = new LoginFrame(session -> {
+                MainFrame mainFrame = new MainFrame(session);
                 mainFrame.setVisible(true);
             });
 
