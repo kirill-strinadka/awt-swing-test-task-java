@@ -35,6 +35,14 @@ public class LoginPresenter {
     }
 
     public void onLoginClicked() {
+        if(!isLoginFormViewCorrect()) {
+            return;
+        }
+
+        runLoginExecutor(view.getHost(), view.getPort(), view.getUsername(), view.getPassword());
+    }
+
+    private boolean isLoginFormViewCorrect() {
         String host = view.getHost();
         int port = view.getPort();
         String username = view.getUsername();
@@ -42,26 +50,26 @@ public class LoginPresenter {
 
         if (host == null || host.isBlank()) {
             view.showError("Host is required");
-            return;
+            return false;
         }
-
         if (port <= 0 || port > 65535) {
             view.showError("Port must be between 1 and 65535");
-            return;
+            return false;
         }
-
         if (username == null || username.isBlank()) {
             view.showError("Username is required");
-            return;
+            return false;
         }
-
         if (passwordChars == null || passwordChars.length == 0) {
             view.showError("Password is required");
-            return;
+            return false;
         }
-
         view.setLoading(true);
 
+        return true;
+    }
+
+    private void runLoginExecutor(String host, int port, String username, char[] passwordChars) {
         loginExecutor.submit(() -> {
             String password = new String(passwordChars);
             Arrays.fill(passwordChars, '\0');
