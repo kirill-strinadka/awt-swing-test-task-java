@@ -4,18 +4,7 @@ import com.kstrinadka.chat.client.presentation.login.LoginPresenter;
 import com.kstrinadka.chat.client.presentation.login.LoginSuccessHandler;
 import com.kstrinadka.chat.client.presentation.login.LoginView;
 
-import javax.swing.BorderFactory;
-import javax.swing.Box;
-import javax.swing.BoxLayout;
-import javax.swing.JButton;
-import javax.swing.JFormattedTextField;
-import javax.swing.JFrame;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JPasswordField;
-import javax.swing.JTextField;
-import javax.swing.SwingConstants;
-import javax.swing.WindowConstants;
+import javax.swing.*;
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Dimension;
@@ -62,13 +51,28 @@ public class LoginFrame extends JFrame implements LoginView {
         root.setBorder(BorderFactory.createEmptyBorder(24, 24, 24, 24));
         setContentPane(root);
 
+        JPanel footerPanel = new JPanel(new BorderLayout());
+        footerPanel.setBorder(BorderFactory.createEmptyBorder(18, 8, 8, 8));
+        footerPanel.add(statusLabel, BorderLayout.CENTER);
+
+        root.add(createHeaderPanel(), BorderLayout.NORTH);
+        root.add(createFormPanel(), BorderLayout.CENTER);
+        root.add(footerPanel, BorderLayout.SOUTH);
+    }
+
+    private JPanel createHeaderPanel() {
         JLabel titleLabel = new JLabel("Telegram-like Chat Client", SwingConstants.CENTER);
         titleLabel.setFont(titleLabel.getFont().deriveFont(Font.BOLD, 22f));
 
-        JLabel subtitleLabel = new JLabel("Stage 8 — Login flow via TCP AUTH", SwingConstants.CENTER);
+        JLabel subtitleLabel = new JLabel("Тестовое задание для ООО Лог Кэпитал", SwingConstants.CENTER);
         subtitleLabel.setFont(subtitleLabel.getFont().deriveFont(Font.PLAIN, 13f));
 
         JPanel headerPanel = new JPanel();
+        headerPanel.setLayout(new BoxLayout(headerPanel, BoxLayout.Y_AXIS));
+        headerPanel.setBorder(BorderFactory.createEmptyBorder(8, 8, 24, 8));
+        titleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        subtitleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
         headerPanel.setLayout(new BoxLayout(headerPanel, BoxLayout.Y_AXIS));
         headerPanel.setBorder(BorderFactory.createEmptyBorder(8, 8, 24, 8));
         titleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -78,20 +82,24 @@ public class LoginFrame extends JFrame implements LoginView {
         headerPanel.add(Box.createVerticalStrut(8));
         headerPanel.add(subtitleLabel);
 
+        return headerPanel;
+    }
+
+    private JPanel createFormPanel() {
         JPanel formPanel = new JPanel();
         formPanel.setLayout(new BoxLayout(formPanel, BoxLayout.Y_AXIS));
         formPanel.setBorder(BorderFactory.createEmptyBorder(8, 24, 8, 24));
 
-        formPanel.add(createFieldBlock("Host", hostField));
+        formPanel.add(createInputFieldBlock("Host", hostField));
         formPanel.add(Box.createVerticalStrut(14));
 
-        formPanel.add(createFieldBlock("Port", portField));
+        formPanel.add(createInputFieldBlock("Port", portField));
         formPanel.add(Box.createVerticalStrut(14));
 
-        formPanel.add(createFieldBlock("Username", usernameField));
+        formPanel.add(createInputFieldBlock("Username", usernameField));
         formPanel.add(Box.createVerticalStrut(14));
 
-        formPanel.add(createFieldBlock("Password", passwordField));
+        formPanel.add(createInputFieldBlock("Password", passwordField));
         formPanel.add(Box.createVerticalStrut(22));
 
         loginButton.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -99,14 +107,7 @@ public class LoginFrame extends JFrame implements LoginView {
         loginButton.setPreferredSize(new Dimension(160, 42));
 
         formPanel.add(loginButton);
-
-        JPanel footerPanel = new JPanel(new BorderLayout());
-        footerPanel.setBorder(BorderFactory.createEmptyBorder(18, 8, 8, 8));
-        footerPanel.add(statusLabel, BorderLayout.CENTER);
-
-        root.add(headerPanel, BorderLayout.NORTH);
-        root.add(formPanel, BorderLayout.CENTER);
-        root.add(footerPanel, BorderLayout.SOUTH);
+        return formPanel;
     }
 
     private void bindActions() {
@@ -114,7 +115,7 @@ public class LoginFrame extends JFrame implements LoginView {
         getRootPane().setDefaultButton(loginButton);
     }
 
-    private JPanel createFieldBlock(String labelText, javax.swing.JComponent field) {
+    private JPanel createInputFieldBlock(String labelText, JComponent field) {
         JLabel label = new JLabel(labelText);
         label.setBorder(BorderFactory.createEmptyBorder(0, 0, 6, 0));
 
