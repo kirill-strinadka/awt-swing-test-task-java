@@ -1,5 +1,6 @@
 package com.kstrinadka.chat.client.ui.chat;
 
+import com.kstrinadka.chat.client.app.ConnectionState;
 import com.kstrinadka.chat.client.app.session.ClientSession;
 import com.kstrinadka.chat.client.presentation.chat.ChatPresenter;
 import com.kstrinadka.chat.client.presentation.chat.ChatView;
@@ -51,6 +52,7 @@ public class MainFrame extends JFrame implements ChatView {
     private final JLabel chatTitleLabel;
     private final JLabel chatSubtitleLabel;
     private final JLabel errorLabel;
+    private final JLabel connectionLabel;
     private final JLabel placeholderLabel;
 
     private final JPanel centerPanel;
@@ -70,6 +72,7 @@ public class MainFrame extends JFrame implements ChatView {
         chatTitleLabel = new JLabel(" ");
         chatSubtitleLabel = new JLabel(" ");
         errorLabel = new JLabel(" ");
+        connectionLabel = new JLabel(" ", SwingConstants.RIGHT);
         placeholderLabel = new JLabel("Выберите чат слева", SwingConstants.CENTER);
 
         centerCards = new java.awt.CardLayout();
@@ -169,13 +172,16 @@ public class MainFrame extends JFrame implements ChatView {
     private JComponent createHeaderPanel() {
         JPanel headerPanel = new JPanel(new BorderLayout());
         headerPanel.setBackground(HEADER_BG);
-        headerPanel.setBorder(BorderFactory.createEmptyBorder(14, 18, 14, 18));
+        headerPanel.setBorder(BorderFactory.createEmptyBorder(10, 18, 6, 18));
 
         chatTitleLabel.setForeground(TEXT_PRIMARY);
         chatTitleLabel.setFont(chatTitleLabel.getFont().deriveFont(Font.BOLD, 16f));
 
         chatSubtitleLabel.setForeground(TEXT_SECONDARY);
         chatSubtitleLabel.setFont(chatSubtitleLabel.getFont().deriveFont(Font.PLAIN, 12f));
+
+        connectionLabel.setForeground(TEXT_SECONDARY);
+        connectionLabel.setFont(connectionLabel.getFont().deriveFont(Font.PLAIN, 11f));
 
         JPanel textPanel = new JPanel();
         textPanel.setOpaque(false);
@@ -184,13 +190,18 @@ public class MainFrame extends JFrame implements ChatView {
         textPanel.add(Box.createVerticalStrut(4));
         textPanel.add(chatSubtitleLabel);
 
-        JPanel wrapper = new JPanel(new BorderLayout());
-        wrapper.setOpaque(false);
-        wrapper.add(textPanel, BorderLayout.CENTER);
+        JPanel centerWrapper = new JPanel(new BorderLayout());
+        centerWrapper.setOpaque(false);
+        centerWrapper.add(textPanel, BorderLayout.CENTER);
+
+        JPanel headerContent = new JPanel(new BorderLayout());
+        headerContent.setOpaque(false);
+        headerContent.add(centerWrapper, BorderLayout.CENTER);
+        headerContent.add(connectionLabel, BorderLayout.EAST);
 
         JPanel northWrapper = new JPanel(new BorderLayout());
         northWrapper.setBackground(HEADER_BG);
-        northWrapper.add(wrapper, BorderLayout.CENTER);
+        northWrapper.add(headerContent, BorderLayout.CENTER);
         northWrapper.add(new JSeparator(SwingConstants.HORIZONTAL), BorderLayout.SOUTH);
 
         return northWrapper;
@@ -297,6 +308,17 @@ public class MainFrame extends JFrame implements ChatView {
     @Override
     public void showError(String message) {
         errorLabel.setText(message == null || message.isBlank() ? " " : message);
+    }
+
+    public void showConnectionState(ConnectionState state) {
+        String text = switch (state) {
+            case DISCONNECTED -> "Disconnected";
+            case CONNECTING -> "Connecting...";
+            case AUTHENTICATING -> "Authenticating...";
+            case CONNECTED -> "Connected";
+            case FAILED -> "Connection failed";
+        };
+        connectionLabel.setText(text);
     }
 
     @Override

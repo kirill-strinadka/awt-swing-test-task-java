@@ -1,5 +1,6 @@
 package com.kstrinadka.chat.client.presentation.chat;
 
+import com.kstrinadka.chat.client.app.ConnectionState;
 import com.kstrinadka.chat.client.app.session.ClientSession;
 import com.kstrinadka.chat.client.domain.chat.Conversation;
 import com.kstrinadka.chat.client.domain.chat.ConversationStore;
@@ -34,6 +35,7 @@ public class ChatPresenter {
     private final ConversationStore conversationStore = new ConversationStore();
 
     private String activeConversationUsername;
+    private volatile ConnectionState connectionState = ConnectionState.CONNECTED;
 
     public ChatPresenter(ChatView view, ClientSession session) {
         this.view = view;
@@ -43,6 +45,8 @@ public class ChatPresenter {
     public void initialize() {
         ensureConversationExists("alice");
         ensureConversationExists("bob");
+
+        connectionState = ConnectionState.CONNECTED;
 
         activeConversationUsername = null;
         refreshSidebar();
@@ -145,9 +149,13 @@ public class ChatPresenter {
     }
 
     public void onDisconnected(Throwable cause) {
+        connectionState = ConnectionState.FAILED;
         SwingUtilities.invokeLater(() -> {
             view.setSendEnabled(false);
             view.showError("Соединение потеряно");
+            if (view instanceof com.kstrinadka.chat.client.ui.chat.MainFrame mainFrame) {
+                mainFrame.showConnectionState(connectionState);
+            }
         });
     }
 

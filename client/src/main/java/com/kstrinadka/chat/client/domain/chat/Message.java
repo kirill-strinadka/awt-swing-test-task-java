@@ -59,4 +59,18 @@ public record Message(
                 recipient
         );
     }
+
+    public Message withStatusAndServerData(MessageStatus newStatus, String newServerMsgId, Instant acceptedAt) {
+        Instant effectiveCreatedAt = acceptedAt != null ? acceptedAt : createdAt;
+        return new Message(
+                text,
+                direction,
+                effectiveCreatedAt,
+                clientMsgId,
+                newServerMsgId,
+                newStatus,
+                sender,
+                recipient
+        );
+    }
 }
