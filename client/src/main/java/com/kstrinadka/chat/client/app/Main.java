@@ -1,6 +1,7 @@
 package com.kstrinadka.chat.client.app;
 
 import com.formdev.flatlaf.FlatDarkLaf;
+import com.kstrinadka.chat.client.ui.chat.MainFrame;
 import com.kstrinadka.chat.client.ui.login.LoginFrame;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,7 +21,12 @@ public final class Main {
 
         SwingUtilities.invokeLater(() -> {
             log.info("Starting chat client UI");
-            LoginFrame loginFrame = new LoginFrame();
+
+            LoginFrame loginFrame = new LoginFrame(username -> {
+                MainFrame mainFrame = new MainFrame(username);
+                mainFrame.setVisible(true);
+            });
+
             loginFrame.setVisible(true);
         });
     }

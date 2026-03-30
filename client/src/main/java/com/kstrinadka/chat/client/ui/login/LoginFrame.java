@@ -1,6 +1,8 @@
 package com.kstrinadka.chat.client.ui.login;
 
-import com.kstrinadka.chat.client.ui.chat.MainFrame;
+import com.kstrinadka.chat.client.presentation.login.LoginPresenter;
+import com.kstrinadka.chat.client.presentation.login.LoginSuccessHandler;
+import com.kstrinadka.chat.client.presentation.login.LoginView;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -20,7 +22,7 @@ import java.awt.Dimension;
 import java.awt.Font;
 import java.text.NumberFormat;
 
-public class LoginFrame extends JFrame {
+public class LoginFrame extends JFrame implements LoginView {
 
     private final JTextField hostField;
     private final JFormattedTextField portField;
@@ -29,7 +31,9 @@ public class LoginFrame extends JFrame {
     private final JButton loginButton;
     private final JLabel statusLabel;
 
-    public LoginFrame() {
+    private final LoginPresenter presenter;
+
+    public LoginFrame(LoginSuccessHandler successHandler) {
         super("Chat Client — Login");
 
         hostField = new JTextField("127.0.0.1");
@@ -38,6 +42,8 @@ public class LoginFrame extends JFrame {
         passwordField = new JPasswordField();
         loginButton = new JButton("Login");
         statusLabel = new JLabel("Enter credentials to continue", SwingConstants.CENTER);
+
+        presenter = new LoginPresenter(this, successHandler);
 
         initFrame();
         initUi();
@@ -59,7 +65,7 @@ public class LoginFrame extends JFrame {
         JLabel titleLabel = new JLabel("Telegram-like Chat Client", SwingConstants.CENTER);
         titleLabel.setFont(titleLabel.getFont().deriveFont(Font.BOLD, 22f));
 
-        JLabel subtitleLabel = new JLabel("Stage 2 — UI skeleton without network", SwingConstants.CENTER);
+        JLabel subtitleLabel = new JLabel("Stage 8 — Login flow via TCP AUTH", SwingConstants.CENTER);
         subtitleLabel.setFont(subtitleLabel.getFont().deriveFont(Font.PLAIN, 13f));
 
         JPanel headerPanel = new JPanel();
@@ -104,19 +110,7 @@ public class LoginFrame extends JFrame {
     }
 
     private void bindActions() {
-        loginButton.addActionListener(e -> {
-            String username = getUsername();
-            if (username.isBlank()) {
-                statusLabel.setText("Username is required");
-                return;
-            }
-
-            statusLabel.setText("Opening main chat window...");
-            MainFrame mainFrame = new MainFrame(username);
-            mainFrame.setVisible(true);
-            dispose();
-        });
-
+        loginButton.addActionListener(e -> presenter.onLoginClicked());
         getRootPane().setDefaultButton(loginButton);
     }
 
@@ -144,10 +138,12 @@ public class LoginFrame extends JFrame {
         return field;
     }
 
+    @Override
     public String getHost() {
         return hostField.getText().trim();
     }
 
+    @Override
     public int getPort() {
         Object value = portField.getValue();
         if (value instanceof Number number) {
@@ -156,23 +152,38 @@ public class LoginFrame extends JFrame {
         return 9000;
     }
 
+    @Override
     public String getUsername() {
         return usernameField.getText().trim();
     }
 
+    @Override
     public char[] getPassword() {
         return passwordField.getPassword();
     }
 
-    public void setStatus(String text) {
-        statusLabel.setText(text);
+    @Override
+    public void setLoading(boolean loading) {
+        loginButton.setEnabled(!loading);
+        hostField.setEnabled(!loading);
+        portField.setEnabled(!loading);
+        usernameField.setEnabled(!loading);
+        passwordField.setEnabled(!loading);
+
+        if (loading) {
+            statusLabel.setText("Connecting and authorizing...");
+        } else if (statusLabel.getText() == null || statusLabel.getText().isBlank()) {
+            statusLabel.setText(" ");
+        }
     }
 
-    public void setLoginEnabled(boolean enabled) {
-        loginButton.setEnabled(enabled);
-        hostField.setEnabled(enabled);
-        portField.setEnabled(enabled);
-        usernameField.setEnabled(enabled);
-        passwordField.setEnabled(enabled);
+    @Override
+    public void showError(String message) {
+        statusLabel.setText(message == null || message.isBlank() ? "Unknown error" : message);
+    }
+
+    @Override
+    public void close() {
+        dispose();
     }
 }
