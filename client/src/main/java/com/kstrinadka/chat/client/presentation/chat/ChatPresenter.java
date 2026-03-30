@@ -59,14 +59,12 @@ public class ChatPresenter {
             activeConversationUsername = null;
             view.showChatPlaceholder("Выберите чат слева");
             view.setSendEnabled(false);
-            refreshSidebar();
             return;
         }
 
         activeConversationUsername = conversationUsername;
         ensureConversationExists(conversationUsername);
         showActiveConversation();
-        refreshSidebar();
         view.showChatContent();
         view.setSendEnabled(true);
     }

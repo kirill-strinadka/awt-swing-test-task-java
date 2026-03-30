@@ -335,7 +335,9 @@ public class MainFrame extends JFrame implements ChatView {
         }
 
         if (selectedIndex >= 0) {
-            contactsList.setSelectedIndex(selectedIndex);
+            if (contactsList.getSelectedIndex() != selectedIndex) {
+                contactsList.setSelectedIndex(selectedIndex);
+            }
         } else {
             contactsList.clearSelection();
         }
