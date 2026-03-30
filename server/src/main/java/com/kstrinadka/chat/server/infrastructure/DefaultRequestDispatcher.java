@@ -8,6 +8,7 @@ import com.kstrinadka.chat.server.protocol.ClientRequest;
 import com.kstrinadka.chat.server.protocol.ErrorResponse;
 import com.kstrinadka.chat.server.protocol.ProtocolTypes;
 import com.kstrinadka.chat.server.protocol.SendMessageRequest;
+import com.kstrinadka.chat.server.protocol.PingRequest;
 import com.kstrinadka.chat.server.protocol.ServerResponse;
 import com.kstrinadka.chat.server.transport.ConnectionContext;
 
@@ -30,6 +31,11 @@ public final class DefaultRequestDispatcher implements RequestDispatcher {
         }
         if (request instanceof SendMessageRequest sendMessageRequest) {
             return sendMessageUseCase.handle(context, sendMessageRequest);
+        }
+
+        if (request instanceof PingRequest) {
+            // Keep-alive ping: no response needed for this connection
+            return null;
         }
 
         return new ErrorResponse(

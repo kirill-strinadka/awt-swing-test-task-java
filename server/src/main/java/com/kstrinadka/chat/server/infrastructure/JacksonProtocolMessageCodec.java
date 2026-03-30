@@ -38,6 +38,7 @@ public final class JacksonProtocolMessageCodec implements ProtocolMessageCodec {
             return switch (type) {
                 case ProtocolTypes.REQUEST_AUTH -> objectMapper.treeToValue(root, AuthRequest.class);
                 case ProtocolTypes.REQUEST_SEND -> objectMapper.treeToValue(root, SendMessageRequest.class);
+                case ProtocolTypes.REQUEST_PING -> objectMapper.treeToValue(root, PingRequest.class);
                 default -> throw new ProtocolException("Unsupported request type: " + type);
             };
         } catch (JsonProcessingException e) {

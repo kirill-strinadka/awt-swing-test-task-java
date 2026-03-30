@@ -11,7 +11,8 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 )
 @JsonSubTypes({
         @JsonSubTypes.Type(value = AuthRequest.class, name = "AUTH"),
-        @JsonSubTypes.Type(value = SendRequest.class, name = "SEND")
+        @JsonSubTypes.Type(value = SendRequest.class, name = "SEND"),
+        @JsonSubTypes.Type(value = PingRequest.class, name = "PING")
 })
 public interface ClientRequest {
 

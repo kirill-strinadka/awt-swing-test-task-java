@@ -5,6 +5,7 @@ import com.kstrinadka.chat.server.protocol.ClientRequest;
 import com.kstrinadka.chat.server.protocol.ProtocolException;
 import com.kstrinadka.chat.server.protocol.ProtocolTypes;
 import com.kstrinadka.chat.server.protocol.ProtocolValidator;
+import com.kstrinadka.chat.server.protocol.PingRequest;
 import com.kstrinadka.chat.server.protocol.SendMessageRequest;
 
 public final class DefaultProtocolValidator implements ProtocolValidator {
@@ -31,6 +32,11 @@ public final class DefaultProtocolValidator implements ProtocolValidator {
 
         if (request instanceof SendMessageRequest sendMessageRequest) {
             validateSend(sendMessageRequest);
+            return;
+        }
+
+        if (request instanceof PingRequest pingRequest) {
+            validatePing(pingRequest);
             return;
         }
 
@@ -63,6 +69,13 @@ public final class DefaultProtocolValidator implements ProtocolValidator {
         if (request.text().length() > maxMessageLength) {
             throw new ProtocolException("SEND.text exceeds maxMessageLength=" + maxMessageLength);
         }
+    }
+
+    private void validatePing(PingRequest request) throws ProtocolException {
+        if (!ProtocolTypes.REQUEST_PING.equals(request.type())) {
+            throw new ProtocolException("Invalid PING.type value: " + request.type());
+        }
+        requireNotBlank(request.requestId(), "PING.requestId");
     }
 
     private static void requireNotBlank(String value, String fieldName) throws ProtocolException {

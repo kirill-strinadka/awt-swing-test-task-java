@@ -4,6 +4,7 @@ import com.kstrinadka.chat.client.protocol.ClientRequest;
 import com.kstrinadka.chat.client.protocol.IncomingResponse;
 import com.kstrinadka.chat.client.protocol.JacksonProtocolCodec;
 import com.kstrinadka.chat.client.protocol.ProtocolCodec;
+import com.kstrinadka.chat.client.protocol.PingRequest;
 import com.kstrinadka.chat.client.protocol.ServerResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,6 +21,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.UUID;
 
 public class TcpChatClient implements AutoCloseable {
 
@@ -28,6 +33,8 @@ public class TcpChatClient implements AutoCloseable {
     private final ProtocolCodec protocolCodec;
     private volatile TcpChatClientListener listener;
     private final ExecutorService readerExecutor;
+    private final ScheduledExecutorService heartbeatExecutor;
+    private volatile ScheduledFuture<?> heartbeatTask;
     private final ConcurrentHashMap<String, CompletableFuture<ServerResponse>> pendingRequests =
             new ConcurrentHashMap<>();
 
@@ -48,6 +55,11 @@ public class TcpChatClient implements AutoCloseable {
         this.listener = Objects.requireNonNull(listener, "listener must not be null");
         this.readerExecutor = Executors.newSingleThreadExecutor(r -> {
             Thread thread = new Thread(r, "tcp-chat-client-reader");
+            thread.setDaemon(true);
+            return thread;
+        });
+        this.heartbeatExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread thread = new Thread(r, "tcp-chat-client-heartbeat");
             thread.setDaemon(true);
             return thread;
         });
@@ -82,6 +94,7 @@ public class TcpChatClient implements AutoCloseable {
                 this.connected = true;
 
                 startReaderLoop();
+                startHeartbeat();
 
                 log.info("Connected to {}:{}", host, port);
             } catch (IOException ex) {
@@ -104,6 +117,7 @@ public class TcpChatClient implements AutoCloseable {
 
             log.info("Disconnecting TCP client");
             connected = false;
+            stopHeartbeat();
             closeResourcesQuietly();
 
             failAllPendingRequests(new IllegalStateException("Disconnected"));
@@ -229,6 +243,7 @@ public class TcpChatClient implements AutoCloseable {
         synchronized (lifecycleLock) {
             boolean wasConnected = connected;
             connected = false;
+            stopHeartbeat();
             closeResourcesQuietly();
             failAllPendingRequests(cause);
 
@@ -236,6 +251,36 @@ public class TcpChatClient implements AutoCloseable {
                 log.warn("TCP client disconnected due to failure", cause);
                 listener.onDisconnected(cause);
             }
+        }
+    }
+
+    private void startHeartbeat() {
+        stopHeartbeat();
+        heartbeatTask = heartbeatExecutor.scheduleAtFixedRate(
+                this::sendHeartbeatSafely,
+                30_000L,
+                30_000L,
+                TimeUnit.MILLISECONDS
+        );
+    }
+
+    private void stopHeartbeat() {
+        ScheduledFuture<?> task = heartbeatTask;
+        if (task != null) {
+            task.cancel(true);
+            heartbeatTask = null;
+        }
+    }
+
+    private void sendHeartbeatSafely() {
+        if (!connected) {
+            return;
+        }
+        try {
+            PingRequest ping = PingRequest.of(UUID.randomUUID().toString());
+            sendRequest(ping);
+        } catch (RuntimeException ex) {
+            // Heartbeat failures should not crash the client; reader loop will handle disconnects.
         }
     }
 

@@ -9,6 +9,8 @@ public final class ProtocolTypes {
     public static final String REQUEST_AUTH = "AUTH";
     /** Client request: send chat message. */
     public static final String REQUEST_SEND = "SEND";
+    /** Client request: keep-alive ping. */
+    public static final String REQUEST_PING = "PING";
 
     public static final String AUTH_OK = "AUTH_OK";
     public static final String AUTH_ERROR = "AUTH_ERROR";
