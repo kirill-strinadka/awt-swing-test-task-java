@@ -9,13 +9,7 @@ import com.kstrinadka.chat.client.protocol.ServerResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
-import java.net.Socket;
-import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -207,6 +201,7 @@ public class TcpChatClient implements AutoCloseable {
     private void dispatch(ServerResponse response) {
         String requestId = response.requestId();
 
+        // server response
         if (requestId != null && !requestId.isBlank()) {
             CompletableFuture<ServerResponse> future = pendingRequests.remove(requestId);
             if (future != null) {
@@ -218,6 +213,8 @@ public class TcpChatClient implements AutoCloseable {
             return;
         }
 
+
+        // incoming message
         if (response instanceof IncomingResponse incomingResponse) {
             listener.onIncoming(incomingResponse);
             return;
@@ -285,15 +282,4 @@ public class TcpChatClient implements AutoCloseable {
         }
     }
 
-    private void closeQuietly(AutoCloseable closeable) {
-        if (closeable == null) {
-            return;
-        }
-
-        try {
-            closeable.close();
-        } catch (Exception ex) {
-            log.debug("Failed to close resource cleanly", ex);
-        }
-    }
 }
