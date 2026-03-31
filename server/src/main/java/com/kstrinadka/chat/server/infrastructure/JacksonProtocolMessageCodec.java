@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kstrinadka.chat.server.protocol.AuthRequest;
 import com.kstrinadka.chat.server.protocol.ClientRequest;
+import com.kstrinadka.chat.server.protocol.PingRequest;
 import com.kstrinadka.chat.server.protocol.ProtocolException;
 import com.kstrinadka.chat.server.protocol.ProtocolMessageCodec;
 import com.kstrinadka.chat.server.protocol.ProtocolTypes;
