@@ -107,31 +107,6 @@ public class MainFrame extends JFrame implements ChatView {
     }
 
     private JComponent createSidebarPanel(String currentUsername) {
-        JPanel sidebar = new JPanel(new BorderLayout());
-        sidebar.setBackground(SIDEBAR_BG);
-        sidebar.setPreferredSize(new Dimension(300, 0));
-        sidebar.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, new Color(45, 58, 70)));
-
-        JLabel profileLabel = new JLabel("Logged in as: " + currentUsername);
-        profileLabel.setForeground(TEXT_PRIMARY);
-        profileLabel.setFont(profileLabel.getFont().deriveFont(Font.BOLD, 14f));
-
-        JLabel sectionLabel = new JLabel("Chats");
-        sectionLabel.setForeground(TEXT_SECONDARY);
-        sectionLabel.setFont(sectionLabel.getFont().deriveFont(Font.PLAIN, 12f));
-
-        JPanel topPanel = new JPanel();
-        topPanel.setOpaque(false);
-        topPanel.setLayout(new BoxLayout(topPanel, BoxLayout.Y_AXIS));
-        topPanel.setBorder(BorderFactory.createEmptyBorder(20, 18, 16, 18));
-
-        profileLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        sectionLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-        topPanel.add(profileLabel);
-        topPanel.add(Box.createVerticalStrut(14));
-        topPanel.add(sectionLabel);
-
         contactsList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         contactsList.setBackground(SIDEBAR_BG);
         contactsList.setForeground(TEXT_PRIMARY);
@@ -143,10 +118,36 @@ public class MainFrame extends JFrame implements ChatView {
         contactsScrollPane.setBorder(null);
         contactsScrollPane.getViewport().setBackground(SIDEBAR_BG);
 
-        sidebar.add(topPanel, BorderLayout.NORTH);
+        JPanel sidebar = new JPanel(new BorderLayout());
+        sidebar.setBackground(SIDEBAR_BG);
+        sidebar.setPreferredSize(new Dimension(300, 0));
+        sidebar.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, new Color(45, 58, 70)));
+        sidebar.add(createTopPanel(currentUsername), BorderLayout.NORTH);
         sidebar.add(contactsScrollPane, BorderLayout.CENTER);
 
         return sidebar;
+    }
+
+    private JPanel createTopPanel(String currentUsername) {
+        JLabel profileLabel = new JLabel("Logged in as: " + currentUsername);
+        profileLabel.setForeground(TEXT_PRIMARY);
+        profileLabel.setFont(profileLabel.getFont().deriveFont(Font.BOLD, 14f));
+        profileLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JLabel sectionLabel = new JLabel("Chats");
+        sectionLabel.setForeground(TEXT_SECONDARY);
+        sectionLabel.setFont(sectionLabel.getFont().deriveFont(Font.PLAIN, 12f));
+        sectionLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JPanel topPanel = new JPanel();
+        topPanel.setOpaque(false);
+        topPanel.setLayout(new BoxLayout(topPanel, BoxLayout.Y_AXIS));
+        topPanel.setBorder(BorderFactory.createEmptyBorder(20, 18, 16, 18));
+        topPanel.add(profileLabel);
+        topPanel.add(Box.createVerticalStrut(14));
+        topPanel.add(sectionLabel);
+
+        return topPanel;
     }
 
     private JComponent createCenterArea() {
