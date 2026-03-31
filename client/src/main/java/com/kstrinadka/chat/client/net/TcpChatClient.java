@@ -40,10 +40,7 @@ public class TcpChatClient implements AutoCloseable {
 
     private final Object lifecycleLock = new Object();
     private final Object writeLock = new Object();
-
-    private volatile Socket socket;
-    private volatile BufferedReader reader;
-    private volatile BufferedWriter writer;
+    private volatile ConnectionToServer connection;
     private volatile boolean connected;
 
     public TcpChatClient(TcpChatClientListener listener) {
@@ -80,17 +77,7 @@ public class TcpChatClient implements AutoCloseable {
             try {
                 log.info("Connecting to {}:{}", host, port);
 
-                Socket newSocket = new Socket(host, port);
-                BufferedReader newReader = new BufferedReader(
-                        new InputStreamReader(newSocket.getInputStream(), StandardCharsets.UTF_8)
-                );
-                BufferedWriter newWriter = new BufferedWriter(
-                        new OutputStreamWriter(newSocket.getOutputStream(), StandardCharsets.UTF_8)
-                );
-
-                this.socket = newSocket;
-                this.reader = newReader;
-                this.writer = newWriter;
+                this.connection = ConnectionToServer.open(host, port);
                 this.connected = true;
 
                 startReaderLoop();
@@ -98,7 +85,7 @@ public class TcpChatClient implements AutoCloseable {
 
                 log.info("Connected to {}:{}", host, port);
             } catch (IOException ex) {
-                closeResourcesQuietly();
+                closeConnectionQuietly();
                 throw new IllegalStateException("Failed to connect to server", ex);
             }
         }
@@ -111,14 +98,14 @@ public class TcpChatClient implements AutoCloseable {
 
     public void disconnect() {
         synchronized (lifecycleLock) {
-            if (!connected && socket == null && reader == null && writer == null) {
+            if (!connected && connection == null) {
                 return;
             }
 
             log.info("Disconnecting TCP client");
             connected = false;
             stopHeartbeat();
-            closeResourcesQuietly();
+            closeConnectionQuietly();
 
             failAllPendingRequests(new IllegalStateException("Disconnected"));
         }
@@ -130,23 +117,20 @@ public class TcpChatClient implements AutoCloseable {
 
     public void sendRequest(ClientRequest request) {
         Objects.requireNonNull(request, "request must not be null");
-
-        if (!connected) {
-            throw new IllegalStateException("Client is not connected");
-        }
-
         String json = protocolCodec.encode(request);
 
         synchronized (writeLock) {
+
+            if (!connected) {
+                throw new IllegalStateException("Client is not connected");
+            }
+            ConnectionToServer currentConnection = this.connection;
+            if (currentConnection == null) {
+                throw new IllegalStateException("Connection is not initialized");
+            }
+
             try {
-                if (writer == null) {
-                    throw new IllegalStateException("Writer is not initialized");
-                }
-
-                writer.write(json);
-                writer.newLine();
-                writer.flush();
-
+                currentConnection.writeLine(json);
                 log.debug("Request sent: {}", json);
             } catch (IOException ex) {
                 handleReaderLoopFailure(ex);
@@ -192,29 +176,32 @@ public class TcpChatClient implements AutoCloseable {
 
     private void runReaderLoop() throws IOException {
         while (connected) {
-            BufferedReader currentReader = this.reader;
-            if (currentReader == null) {
+            ConnectionToServer currentConnection = this.connection;
+            if (currentConnection == null) {
                 return;
             }
-
-            String line = currentReader.readLine();
-
+            String line = currentConnection.readLine();
             if (line == null) {
                 throw new IOException("Server closed the connection");
             }
 
-            log.debug("Response line received: {}", line);
-
-            ServerResponse response;
-            try {
-                response = protocolCodec.decode(line);
-            } catch (RuntimeException ex) {
-                listener.onProtocolError(line, ex);
-                continue;
-            }
-
-            dispatch(response);
+            handleIncomingLine(line);
         }
+    }
+
+    private void handleIncomingLine(String line) {
+        log.debug("Response line received: {}", line);
+
+        ServerResponse response;
+        try {
+            response = protocolCodec.decode(line);
+        } catch (RuntimeException ex) {
+            TcpChatClientListener currentListener = this.listener;
+            currentListener.onProtocolError(line, ex);
+            return;
+        }
+
+        dispatch(response);
     }
 
     private void dispatch(ServerResponse response) {
@@ -244,7 +231,7 @@ public class TcpChatClient implements AutoCloseable {
             boolean wasConnected = connected;
             connected = false;
             stopHeartbeat();
-            closeResourcesQuietly();
+            closeConnectionQuietly();
             failAllPendingRequests(cause);
 
             if (wasConnected) {
@@ -289,14 +276,13 @@ public class TcpChatClient implements AutoCloseable {
         pendingRequests.clear();
     }
 
-    private void closeResourcesQuietly() {
-        closeQuietly(reader);
-        closeQuietly(writer);
-        closeQuietly(socket);
+    private void closeConnectionQuietly() {
+        ConnectionToServer currentConnection = this.connection;
+        this.connection = null;
 
-        reader = null;
-        writer = null;
-        socket = null;
+        if (currentConnection != null) {
+            currentConnection.close();
+        }
     }
 
     private void closeQuietly(AutoCloseable closeable) {
